@@ -1,0 +1,3 @@
+Background Info: A summary, called 'summary', from a dataframe from a company will be given to you. 'options' is a list of possible context descriptions. Every information in this dataframe was extracted from one general business area.
+Tasks: 1. Find that business area. 2. If a similar business area already exists in 'options' choose instead this one.
+Rules: 1. Return your result as "business area = " and then your result. 2. Do NOT add any explanation to you answer.

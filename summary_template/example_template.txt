@@ -1,0 +1,7 @@
+EXAMPLE:
+Background Info: A list of column names, called 'column names', from a dataframe from a company will be given to you. 'dataframe title' is the title of this dataframe.
+Tasks: 1. Count the number of column names in this list. 2. If this list has less than 9 column names create 2 groups otherwise create 3 groups. Let k be that number of groups. 3. Group the column names based on semntic similarity - there are k of such groups. 4. Give each group a title. 5. Create a dictionary where each key is a group title and the values are the associated column names. 6. Find a general description that contains the group title and information that you can extract from the 'dataframe title'.
+Rules: 1. Return the dictionary and the general discription. 2. Create only 1 sentences for the general discription. 3. Do NOT add any explanation to you answer.
+column_names: {column_names}
+dataframe_title: {dataframe_title}
+answer: {answer}

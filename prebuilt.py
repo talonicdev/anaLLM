@@ -4,7 +4,6 @@ import os
 from aenum import extend_enum
 from datetime import datetime
 from functools import partial
-from typing import Callable
 
 import numpy as np
 import pandas as pd
@@ -18,12 +17,11 @@ from pathlib import Path
 from pandasai import PandasAI
 from pandasai.llm.openai import OpenAI
 
-from langchain import PromptTemplate
-from langchain import FewShotPromptTemplate
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
 from vector_search import MetaEngine
+from utils import load_templates, get_template
 
 
 class WordContext(Enum):
@@ -51,13 +49,24 @@ class TableSetter:
         :param dataset_name: name of dataset with file extension, ex.: table.csv
         """
 
-        openai.api_key = api_key
+        # openai.api_key = api_key
+        self.openai_api_key = api_key
+        os.environ['OPENAI_API_KEY'] = api_key
         
         self.dataset_name = dataset_name
         self.original_dir = Path('datasets/original')
         self.destination_dir = Path('datasets/json_data')
-        self.meta_data_table = pd.read_json('datasets/meta_data_table.json')
+
+        meta_data_table_json = Path('datasets/meta_data_table.json')
+        if meta_data_table_json.is_file():
+            self.meta_data_table = pd.read_json('datasets/meta_data_table.json')
+        else:
+            self.meta_data_table = pd.DataFrame(
+                columns=['key', 'table_name', 'creation_date', 'last_update', 'context',
+                         'column_names', 'scopes', 'description', 'column_type'])
+
         # self.meta_data_table = pd.read_excel('datasets/meta_data_table.xlsx')
+
         self.table_path = self.original_dir / dataset_name
 
         self.llm = OpenAI(api_token=api_key, engine="gpt-3.5-turbo")
@@ -67,6 +76,13 @@ class TableSetter:
         self.table = None
         self.destination_name = None
         self.column_description = None
+
+        self.template = None
+        self.examples = None
+        self.prefix = None
+        self.suffix = None
+
+        self.prompt_template = None
 
         self.load_WordContext()
 
@@ -93,7 +109,7 @@ class TableSetter:
         """
         self.columns_info()
         self.scopes()
-        self.summary()
+        self.get_summary()
         self.context()
         self.save_meta_data_table()
 
@@ -144,6 +160,41 @@ class TableSetter:
         self.meta_data_table.loc[len(self.meta_data_table.index)] = [
             self.key, table_name, creation_date, last_update, *[None]*5]
 
+    def get_summary_template(self):
+        self.template, self.prefix, self.suffix, self.examples = load_templates('summary_template')
+        self.prompt_template = get_template(self.template,
+                                            self.examples,
+                                            self.prefix,
+                                            self.suffix,
+                                            ["column_names", "dataframe_title"])
+
+    def get_summary(self):
+        self.get_summary_template()
+
+        key_words: list = self.table.columns.tolist()
+        exceptions = [x.value for x in WordException]
+
+        from langchain.llms import OpenAI
+
+        openai = OpenAI(
+            model_name="text-davinci-003",
+            openai_api_key=self.openai_api_key
+        )
+
+        completion = openai(
+            self.prompt_template.format(
+                column_names=key_words,
+                dataframe_title=self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'table_name'].values[0])
+        )
+
+        print(completion)
+
+        match = re.search(r'\bdescription\b', completion)
+        pos = match.span()
+
+        description = completion[pos[1]+4:-1]
+        self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'description'] = description
+
     def columns_info(self) -> None:
         """
         Inserts the column names and types.
@@ -181,10 +232,6 @@ class TableSetter:
             temperature=0.6,
             max_tokens=150,
         )
-
-        # Integers, Packages, Prices, Dates, Dates (2), Countries, Ages, Genders, Devices, Durations (v1)
-        # Numbers, Plans, Prices, Dates, Dates (2), Countries, Ages, Genders, Devices, Durations (v2)
-        # User ID, Subscription Type, Monthly Revenue, Join Date, Last Payment Date, Country, Age, Gender, Device, Plan Duration
 
         return name_response.choices[0].text
 
@@ -239,66 +286,46 @@ class TableSetter:
                         if self.unit_checker(idx):
                             self.distance_format(idx)
 
-    def summary(self) -> None:
-        """
-        Summarizes the content of given table.
-        """
-
-        key_words: list = self.table.columns.tolist()
-        exceptions = [x.value for x in WordException]
-
-        info1 = f" A list of column names from a dataset from a company will be given to you."
-        info2 = f" This dataset has the following title: {self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'table_name']}."
-
-        condition1 = f" Rules: a) Include as much information as possible in all 4 answers. b) Don't use any column names for any answer."
-
-        condition2 = f" Start your 1. answer with the sentence: 'The dataset contains information related to ...' . "
-        condition21 = f" For your 1. answer don't use the words in the following list: {exceptions}."
-        condition22 = f" And also don't use the companies name or the title of the dataset for this specific answer."
-
-        condition3 = f" Start your 2. answer with: 'The columns in this dataset can be grouped into several categories based on their similarities: ...' . "
-        condition4 = f" Start your 3. answer with: 'The data is about the company, ...' . "
-
-        content1 = f" 1. question: What is a context description for the following column names in this list {key_words}? "
-        content2 = f" 2. question: Group the columns of this dataset by similarity. Name only these groups."
-        content3 = f" 3. question: Which company is that data about?"
-
-        completion = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": info1 + info2 + condition1 + condition2 + condition21 + condition22 + condition3 + condition4},
-                {"role": "user", "content": content1 + content2 + content3}
-            ]
-        )
-
-        description = self.format_answers(completion.choices[0].message.content)
-        self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'description'] = description
+    def get_context_template(self):
+        self.template, self.prefix, self.suffix, self.examples = load_templates('context_template')
+        self.prompt_template = get_template(self.template,
+                                            self.examples,
+                                            self.prefix,
+                                            self.suffix,
+                                            ["summary", "options"])
 
     def get_context(self) -> str:
         """
         Via Completion (gpt) estimates context of given table.
         :return: context value
         """
+        self.get_context_template()
+
         description = self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'description']
         exceptions = [x.value for x in WordException]
         context_lib = [item.value for item in WordContext]
-        prompt = (f"Do not use any of the following words in your answer: {exceptions}."
-                  f"If one of the following statements {context_lib} that describes the context of {description} return it otherwise find a new one."
-                  f"Choose maximum two words to describe this context and do not use the word data.")
 
-        response = openai.Completion.create(
-            engine="text-davinci-003",
-            prompt=prompt,
-            temperature=0.6,
-            max_tokens=3000,
+        from langchain.llms import OpenAI
+
+        openai = OpenAI(
+            model_name="text-davinci-003",
+            openai_api_key=self.openai_api_key
         )
 
-        # 0 user subscriptions could refer to a management context where a company tracks the number of users
-        # who have subscribed to their services or products. This could be used to measure the success of
-        # a marketing campaign or to understand the customer base of the company.
-        # -> Data Management
+        completion = openai(
+            self.prompt_template.format(
+                summary=description,
+                options=context_lib)
+        )
 
-        return self.format_answers(response.choices[0].text)
+        print(completion)
+
+        match = re.search(r'\bbusiness area\b', completion)
+        pos = match.span()
+
+        context = completion[pos[1] + 4:-1]
+
+        return context
 
     def context(self) -> None:
         """
@@ -374,29 +401,6 @@ class TableSetter:
                 if WordContext_dict[key] not in [item.value for item in WordContext]:
                     extend_enum(WordContext, f'{key}', WordContext_dict[key])
 
-    @staticmethod
-    def format_answers(answer: str) -> str:
-        """
-        Adjust llm string answer into acceptable format.
-        :param answer: llm answer
-        :return: new formatted answer
-        """
-
-        start = [(m.start(0), m.end(0)) for m in re.finditer(r"(?<![^\s>])([0-9]+)\. ", answer)]
-        answer1 = answer[start[0][1]: start[1][0]].split('.')[0]
-        answer2 = answer[start[1][1]: start[2][0]]
-        answer3 = answer[start[2][1]:]
-
-        a = 'The dataset contains information related to'
-        b = 'The columns in this dataset can be grouped into several categories based on their similarities:'
-        c = 'The data is about the company'
-
-        proper_answers = [proper_start.find(ans) for proper_start, ans in zip([answer1, answer2, answer3], [a, b, c])]
-
-        # - User Information: column names (either dot and new sentence or continue) about meaning of each column
-
-        return c + ' ' + a + ' ' + b
-
     def save_meta_data_table(self) -> None:
         """
         Saves metadata table as json and excel files.
@@ -435,60 +439,25 @@ class Extractor:
 
         self.keys_words = None
 
-    def load_templates(self):
-        script_path = Path(__file__).parent.resolve()
+        self.selected_table_keys = []
 
-        with open(script_path / 'meta_template/example_template.txt', 'r') as file:
-            self.template = file.read().replace('\n', ' \n ')
-
-        with open(script_path / 'meta_template/prefix.txt', 'r') as file:
-            self.prefix = file.read().replace('\n', ' \n ')
-
-        with open(script_path / 'meta_template/suffix.txt', 'r') as file:
-            self.suffix = file.read().replace('\n', ' \n ')
-
-        with open(script_path / 'meta_template/examples.yaml', 'r') as file:
-            self.examples = yaml.safe_load(file)
-
-        self.examples = [self.examples[k] for k in self.examples.keys()]
-
-    def get_template(self):
-        """
-        query_item : rows = user request
-        query_entries: columns = add infos
-        answer: model answer
-        :return:
-        """
-
-        example_template = """
-        EXAMPLE: 
-        Request Item List: {question}
-        Answer: {answer}
-        """
-
-        example_prompt = PromptTemplate(
-            input_variables=["question", "answer"],
-            template=example_template
-        )
-
-        self.prompt_template = FewShotPromptTemplate(
-            examples=self.examples,
-            example_prompt=example_prompt,
-            prefix=self.prefix,
-            suffix=self.suffix,
-            input_variables=["question"],
-            example_separator="\n\n"
-        )
+    def get_meta_template(self):
+        self.template, self.prefix, self.suffix, self.examples = load_templates('meta_template')
+        self.prompt_template = get_template(self.template,
+                                            self.examples,
+                                            self.prefix,
+                                            self.suffix,
+                                            ["question"])
 
     def key_word_selection(self):
         prompt = self.prompt_template.format(question=self.customer_request)
         prompt_template = ChatPromptTemplate.from_template(prompt)
         message = prompt_template.format_messages()
+
         llm = ChatOpenAI(temperature=0, openai_api_key=os.getenv(self.openai_api_key))
         response = llm(message)
-        print(response.content)
 
-        self.keys_words = response.content
+        self.keys_words = ast.literal_eval(response.content)
 
     def select_tables(self):
         script_path = Path(__file__).parent.resolve()
@@ -496,32 +465,33 @@ class Extractor:
         meta_table = pd.read_excel(script_path / 'datasets/meta_data_table.xlsx')
 
         meta_columns = [list(ast.literal_eval(meta_table['column_names'][i]).values()) for i in range(len(meta_table))]
-        corpus = [item for row in meta_columns for item in row]
+        table_indices = [meta_table['key'][i] for i in range(len(meta_table))]
 
         me = MetaEngine('test_collection')
 
-        for idx, col in enumerate(meta_columns):
-            me.embed_new_vec(idx, col)
+        vec_num = 0
 
-        # me.load_vec()
+        for col, table_index in zip(meta_columns, table_indices):
+            me.embed_new_vec(vec_num, table_index, col)
+            vec_num += len(col)
 
-        for query in self.keys_words:
-            me.find_cos(corpus, query)
-            me.find_sem(corpus, query)
+        me.load_vec()
 
-    def get_datasets(self):
-        rootdir = Path('datasets/original')
-        file_list = [f for f in rootdir.glob('**/*') if f.is_file()]
+        temp_res = []
 
-        for file in file_list:
-            file_extension = file.suffix
-            self.temp_data = pd.read_csv(file) if file_extension == '.csv' else pd.read_excel(file)
-
-            if self.table_relevance():
-                if self.data.empty:
-                    self.data = self.temp_data
+        for i, query in enumerate(self.keys_words):
+            similar_results = me.find_semantic(query)
+            for res in similar_results:
+                if i == 0:
+                    self.selected_table_keys.append(res[0])
                 else:
-                    self.data = pd.concat([self.data, self.temp_data], axis=1)
+                    temp_res.append(res[0])
+
+            # to get an intersection of all values
+            if i != 0:
+                self.selected_table_keys = [value for value in temp_res if value in self.selected_table_keys]
+
+        self.selected_table_keys = list(set(self.selected_table_keys))
 
     def table_relevance(self):
         return self.pandas_ai(data_frame=self.meta_data_table,
@@ -547,22 +517,24 @@ class Extractor:
 
 
 if __name__ == "__main__":
-    api_key = "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"
+    api_key = "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"
 
-    '''ex1 = 'Advertising Budget and Sales.csv'
+    ex1 = 'Advertising Budget and Sales.csv'
     ex2 = 'Adidas US Sales Datasets.xlsx'
     ex3 = 'Netflix Userbase.csv'
 
-    setter = TableSetter(api_key, ex2)
-    setter.run()'''
+    names = ['Advertising Budget and Sales', 'Adidas US Sales', 'Netflix Userbase']
 
-    customer_request = "Do females or males generate the highest revenue?"
+    for n, e in zip(names, [ex1, ex2, ex3]):
+        setter = TableSetter(api_key, e)
+        setter.run(destination_name=f'{n}')
+
+    '''customer_request = "Do females or males generate the highest revenue?"
     extraction = Extractor(api_key, customer_request)
 
-    extraction.load_templates()
-    extraction.get_template()
+    extraction.get_meta_template()
     extraction.key_word_selection()
-    extraction.select_tables()
+    extraction.select_tables()'''
 
     '''extraction.select_tables()
     extraction.get_datasets()

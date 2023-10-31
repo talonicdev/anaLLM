@@ -1,0 +1,7 @@
+example1:
+  data: '[''height'', ''width'', ''shape'', ''color'', ''material'']'
+  answer: 'product description'
+
+example2:
+  data: '[''price'', ''production cost'', ''sold per month'']'
+  answer: 'sales information'

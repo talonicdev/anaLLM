@@ -1,0 +1,9 @@
+example1:
+  column_names: '[[''family'', ''variety'', ''variegation'', ''price'', ''monthly sold'', ''rarity'', ''expenses'']]'
+  dataframe_title: 'plant store products'
+  answer: 'count of column names = 7, number of groups = 2, groups = {{''plant descriptions'': [''family'', ''variety'', ''variegation'', ''rarity''], ''retail details'': [''price'', ''monthly sold'', ''expenses'']}} , description = "This table contains retail details and plant descriptions for a plant store."'
+
+example2:
+  column_names: '[[''height'', ''width'', ''shape'', ''color'', ''price'', ''production cost'', ''material'', ''sold per month'', ''ratings'', ''complaints'']]'
+  dataframe_title: 'adidas products'
+  answer: 'count of column names = 10, number of groups = 3, groups = {{''customer satisfaction'': [''ratings'', ''complaints''], ''product description'': [''height'', ''width'', ''shape'', ''color'', ''material''], ''sales information'': [''price'', ''production cost'', ''sold per month'']}} , description = "This table contains information about customer satisfaction, sales information of products and product details from Adidas."'
