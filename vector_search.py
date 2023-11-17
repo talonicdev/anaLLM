@@ -1,6 +1,6 @@
-import re
 import os
 import ast
+import logging
 from typing import List
 
 import copy
@@ -27,8 +27,16 @@ from langchain.prompts import ChatPromptTemplate
 
 from utils import load_templates, get_template, load_datasets
 
+
 os.environ['API_USER'] = config('USER')
 os.environ['OPENAI_API_KEY'] = config('KEY')
+
+
+logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+    datefmt='%Y-%m-%d:%H:%M:%S',
+    level=logging.DEBUG)
+
+logger = logging.getLogger(__name__)
 
 
 class BaseEmbedding:
@@ -81,16 +89,18 @@ class MetaEngine(BaseEmbedding):
     def __init__(self, collection_name: str):
         super().__init__(collection_name)
 
-    def find_semantic(self, query: str, n_results=5, threshold=0.5):
+    def find_semantic(self, query: str, n_results=5, threshold=0.3):
         query_embedding = self.embedder.encode(query, convert_to_tensor=True)
         hits = util.semantic_search(query_embedding, self.corpus_embeddings, top_k=n_results)
         hits = hits[0]
 
         column_dict = {ast.literal_eval(list(d.keys())[0]): ast.literal_eval(list(d.values())[0]) for d in self.collection_dict['metadatas']}
         similar_results = []
+        logging.info(f"Similarity Result:")
         for hit in hits:
             if hit['score'] >= threshold:
                 similar_results.append(column_dict[hit['corpus_id']])
+                logging.info(f"Element: {column_dict[hit['corpus_id']]} - Score: {hit['score']}")
 
         return similar_results
 
@@ -297,34 +307,17 @@ class ContextCluster(BaseEmbedding):
 
 if __name__ == "__main__":
 
-    cluster = ContextCluster('test_collection')
-    cluster.run()
+    '''cluster = ContextCluster('test_collection')
+    cluster.run()'''
 
-    '''columns1 = ['Retailer', 'Retailer ID', 'Invoice Date', 'Region', 'State', 'City', 'Product',
+    columns1 = ['Retailer', 'Retailer ID', 'Invoice Date', 'Region', 'State', 'City', 'Product', 'sex',
                 'Price per Unit', 'Units Sold', 'Total Sales', 'Operating Profit', 'Operating Margin', 'Sales Method']
     columns2 = ['User ID', 'Subscription Type', 'Monthly Revenue', 'Join Date', 'Last Payment Date', 'Country', 'Age',
                 'Gender', 'Device', 'Plan Duration']
     columns3 = ['TV Ad Budget ($)', 'Radio Ad Budget ($)', 'Newspaper Ad Budget ($)', 'Sales ($)', 'gender']
     corpus = columns1 + columns2 + columns3
 
-    cluster = ContextCluster('test_collection')
-
-    vec_num = 0
-
-    for col, table_index in zip([columns1, columns2, columns3], [1111, 2222, 3333]):
-        cluster.embed_new_vec(vec_num, table_index, col)
-        vec_num += len(col)
-
-    cluster.load_vec()
-    cluster.kmeans_clusters()
-    cluster.get_clusters(corpus)
-
-    cluster.silhouette_score()
-
-    # cluster.agglomerative_clusters()
-    # cluster.get_clusters(corpus)'''
-
-    '''query = 'females'
+    query = 'females'
     me = MetaEngine('test_collection')
     vec_num = 0
 
@@ -336,4 +329,4 @@ if __name__ == "__main__":
     similar_results = me.find_semantic(query)
     print(similar_results)
     # me.show_find_cos(corpus, query)
-    # me.show_find_sem(corpus, query)'''
+    # me.show_find_sem(corpus, query)

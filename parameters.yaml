@@ -1,0 +1,62 @@
+? !!python/object/apply:numpy.core.multiarray.scalar
+- &id001 !!python/object/apply:numpy.dtype
+  args:
+  - f4
+  - false
+  - true
+  state: !!python/tuple
+  - 3
+  - <
+  - null
+  - null
+  - null
+  - -1
+  - -1
+  - 0
+- !!binary |
+  WJmuPQ==
+: batch: 3
+  iter: 11
+  n_cluster: 10
+? !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  Nm+gPQ==
+: batch: 10
+  iter: 8
+  n_cluster: 9
+? !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  7hmuPQ==
+: batch: 3
+  iter: 18
+  n_cluster: 9
+? !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  YVqYPQ==
+: batch: 7
+  iter: 15
+  n_cluster: 8
+? !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  8EulPQ==
+: batch: 3
+  iter: 25
+  n_cluster: 10
+? !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  i6CRPQ==
+: batch: 3
+  iter: 24
+  n_cluster: 8
+? !!python/object/apply:numpy.core.multiarray.scalar
+- *id001
+- !!binary |
+  7f6VPQ==
+: batch: 6
+  iter: 22
+  n_cluster: 8

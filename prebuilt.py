@@ -1,5 +1,8 @@
 import ast
 import os
+import logging
+import argparse
+from typing import List
 
 from aenum import extend_enum
 from datetime import datetime
@@ -22,6 +25,13 @@ from langchain.prompts import ChatPromptTemplate
 
 from vector_search import MetaEngine
 from utils import load_templates, get_template
+
+
+logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+    datefmt='%Y-%m-%d:%H:%M:%S',
+    level=logging.DEBUG)
+
+logger = logging.getLogger(__name__)
 
 
 class WordContext(Enum):
@@ -62,10 +72,8 @@ class TableSetter:
             self.meta_data_table = pd.read_json('datasets/meta_data_table.json')
         else:
             self.meta_data_table = pd.DataFrame(
-                columns=['key', 'table_name', 'creation_date', 'last_update', 'context',
+                columns=['key', 'path', 'table_name', 'creation_date', 'last_update', 'context',
                          'column_names', 'scopes', 'description', 'column_type'])
-
-        # self.meta_data_table = pd.read_excel('datasets/meta_data_table.xlsx')
 
         self.table_path = self.original_dir / dataset_name
 
@@ -83,6 +91,8 @@ class TableSetter:
         self.suffix = None
 
         self.prompt_template = None
+
+        self.terminate = False
 
         self.load_WordContext()
 
@@ -110,6 +120,8 @@ class TableSetter:
         self.columns_info()
         self.scopes()
         self.get_summary()
+        if self.terminate:
+            return
         self.context()
         self.save_meta_data_table()
 
@@ -158,7 +170,8 @@ class TableSetter:
 
         self.load_table(self.key)
         self.meta_data_table.loc[len(self.meta_data_table.index)] = [
-            self.key, table_name, creation_date, last_update, *[None]*5]
+            self.key, str(self.table_path), table_name, creation_date, last_update, *[None]*5
+        ]
 
     def get_summary_template(self):
         self.template, self.prefix, self.suffix, self.examples = load_templates('summary_template')
@@ -190,7 +203,11 @@ class TableSetter:
         print(completion)
 
         match = re.search(r'\bdescription\b', completion)
-        pos = match.span()
+        try:
+            pos = match.span()
+        except:
+            logging.debug(f'GPT answer: {completion}')
+            pos = [0, 0]
 
         description = completion[pos[1]+4:-1]
         self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'description'] = description
@@ -413,21 +430,19 @@ class Extractor:
 
     def __init__(self,
                  openai_api_key: str,
-                 customer_request: str):
+                 customer_request: str,
+                 selected_tables: List[str] = None):
 
         os.environ['OPENAI_API_KEY'] = openai_api_key
 
         self.openai_api_key = openai_api_key
-
         self.customer_request = customer_request
-        self.llm = OpenAI(api_token=api_key, model="gpt-4", max_tokens=1000)
-        self.pandas_ai = PandasAI(self.llm, enable_cache=False, verbose=True, conversational=True)
+        self.llm = OpenAI(api_token=openai_api_key, model="gpt-4", max_tokens=1000)
+        self.pandas_ai = PandasAI(self.llm, enable_cache=True, verbose=True, conversational=True)
 
         self.meta_data_table = pd.read_json('datasets/meta_data_table.json')
-
-        self.selection_prompt = (f"Each row in the given dataframe corresponds to another dataframe. "
-                                 f"Select the keys from the given dataframe that are required to execute the following "
-                                 f"request {customer_request}.")
+        if selected_tables:
+            self.get_selected_tables(selected_tables)
         self.load_WordContext()
 
         self.prompt_template = None
@@ -440,6 +455,19 @@ class Extractor:
         self.keys_words = None
 
         self.selected_table_keys = []
+        self.selected_tables = []
+
+        # save file name for each table
+
+    def get_selected_tables(self, selected_tables):
+        import copy
+        selected_df = list()
+        for name in selected_tables:
+            table = self.meta_data_table.loc[self.meta_data_table['table_name'] == name]
+            selected_df.append(copy.deepcopy(table))
+
+        self.meta_data_table = pd.concat(selected_df)
+        self.meta_data_table.reset_index(drop=True, inplace=True)
 
     def get_meta_template(self):
         self.template, self.prefix, self.suffix, self.examples = load_templates('meta_template')
@@ -460,12 +488,8 @@ class Extractor:
         self.keys_words = ast.literal_eval(response.content)
 
     def select_tables(self):
-        script_path = Path(__file__).parent.resolve()
-
-        meta_table = pd.read_excel(script_path / 'datasets/meta_data_table.xlsx')
-
-        meta_columns = [list(ast.literal_eval(meta_table['column_names'][i]).values()) for i in range(len(meta_table))]
-        table_indices = [meta_table['key'][i] for i in range(len(meta_table))]
+        meta_columns = [list(ast.literal_eval(self.meta_data_table['column_names'][i]).values()) for i in range(len(self.meta_data_table))]
+        table_indices = [self.meta_data_table['key'][i] for i in range(len(self.meta_data_table))]
 
         me = MetaEngine('test_collection')
 
@@ -492,15 +516,38 @@ class Extractor:
                 self.selected_table_keys = [value for value in temp_res if value in self.selected_table_keys]
 
         self.selected_table_keys = list(set(self.selected_table_keys))
+        self.get_tables()
+        self.run_request()
 
-    def table_relevance(self):
-        return self.pandas_ai(data_frame=self.meta_data_table,
-                              prompt=self.selection_prompt,
-                              anonymize_df=True,
-                              show_code=False)
+    def get_tables(self):
+        logging.info(f"SELECTED TABLES")
+        pd.set_option('display.max_columns', None)
+
+        for key in self.selected_table_keys:
+            table_path = Path(self.meta_data_table.loc[self.meta_data_table['key'] == key, 'path'].tolist()[0])
+            file_extension = table_path.suffix
+
+            if file_extension in ['.csv', '.xlsx']:
+                table = pd.read_csv(table_path) if file_extension == '.csv' else pd.read_excel(table_path)
+
+                logging.info(f"\n{table.head(n=3)}")
+
+                self.selected_tables.append(table)
 
     def run_request(self):
-        self.pandas_ai(data_frame=self.data, prompt=self.customer_request, anonymize_df=True, show_code=True)
+        respond = self.pandas_ai.run(data_frame=self.selected_tables, prompt=self.customer_request, anonymize_df=True, show_code=True)
+        print(respond)
+        # print(self.pandas_ai.logs)
+        # print(self.pandas_ai.logs[-4]['msg'])
+
+    def run_request_with_1_df(self):
+        from llama_index.query_engine.pandas_query_engine import PandasQueryEngine
+
+        query_engine = PandasQueryEngine(df=self.selected_tables[0], verbose=True)
+
+        response = query_engine.query(
+            self.customer_request
+        )
 
     @staticmethod
     def load_WordContext():
@@ -517,26 +564,13 @@ class Extractor:
 
 
 if __name__ == "__main__":
-    api_key = "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"
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('-o', '--openai_api_key', help='OPENAI Key', required=True)
+    parser.add_argument('-r', '--customer_request', help='Task for AI.', required=True, nargs='+', dest='customer_request')
+    parser.add_argument('--selected_tables', help='A list of table names that should be selected.')
+    args = parser.parse_args()
 
-    ex1 = 'Advertising Budget and Sales.csv'
-    ex2 = 'Adidas US Sales Datasets.xlsx'
-    ex3 = 'Netflix Userbase.csv'
-
-    names = ['Advertising Budget and Sales', 'Adidas US Sales', 'Netflix Userbase']
-
-    for n, e in zip(names, [ex1, ex2, ex3]):
-        setter = TableSetter(api_key, e)
-        setter.run(destination_name=f'{n}')
-
-    '''customer_request = "Do females or males generate the highest revenue?"
-    extraction = Extractor(api_key, customer_request)
-
+    extraction = Extractor(**vars(args))
     extraction.get_meta_template()
     extraction.key_word_selection()
-    extraction.select_tables()'''
-
-    '''extraction.select_tables()
-    extraction.get_datasets()
-    extraction.run_request()'''
-
+    extraction.select_tables()
