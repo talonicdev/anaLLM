@@ -9,6 +9,19 @@ from langchain import PromptTemplate
 from langchain import FewShotPromptTemplate
 
 
+class WordContext(Enum):
+    pass
+
+
+class WordException(Enum):
+    MANAGEMENT = "management"
+    ROW = "row"
+    COLUMN = "column"
+    DATA = "data"
+    ANALYSIS = "analysis"
+    ANALYTICS = "analytics"
+
+
 def load_templates(template_name: str) -> tuple:
     script_path = Path(__file__).parent.resolve()
 

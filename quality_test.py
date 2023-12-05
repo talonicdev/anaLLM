@@ -3,7 +3,8 @@ import logging
 
 from pathlib import Path
 
-from prebuilt import Extractor, TableSetter
+from prebuilt import Extractor
+from request_engine import TableSetter
 
 logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
     datefmt='%Y-%m-%d:%H:%M:%S',
