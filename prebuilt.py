@@ -2,7 +2,11 @@ import ast
 import os
 import logging
 import argparse
+import calendar
+import time
 from typing import List
+import glob, os.path
+from io import StringIO
 
 from aenum import extend_enum
 
@@ -10,8 +14,10 @@ import pandas as pd
 import yaml
 
 from pathlib import Path
-from pandasai import PandasAI
-from pandasai.llm.openai import OpenAI
+from pandasai import SmartDataframe
+from pandasai import SmartDatalake
+from pandasai import Agent
+from pandasai.llm import OpenAI
 
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
@@ -31,14 +37,15 @@ class Extractor:
     def __init__(self,
                  openai_api_key: str,
                  customer_request: str,
+                 make_plot: bool = False,
                  selected_tables: List[str] = None):
 
         os.environ['OPENAI_API_KEY'] = openai_api_key
 
         self.openai_api_key = openai_api_key
         self.customer_request = customer_request
+        self.make_plot = make_plot
         self.llm = OpenAI(api_token=openai_api_key, model="gpt-4", max_tokens=1000)
-        self.pandas_ai = PandasAI(self.llm, enable_cache=True, verbose=True, conversational=True)
 
         self.meta_data_table = pd.read_json('datasets/meta_data_table.json')
         if selected_tables:
@@ -53,9 +60,12 @@ class Extractor:
         self.suffix = None
 
         self.keys_words = None
+        self.response = None
 
         self.selected_table_keys = []
         self.selected_tables = []
+
+        self.dl = None
 
         # save file name for each table
 
@@ -135,19 +145,74 @@ class Extractor:
                 self.selected_tables.append(table)
 
     def run_request(self):
-        respond = self.pandas_ai.run(data_frame=self.selected_tables, prompt=self.customer_request, anonymize_df=True, show_code=True)
-        print(respond)
-        # print(self.pandas_ai.logs)
-        # print(self.pandas_ai.logs[-4]['msg'])
+        """agent = Agent(self.selected_tables, config={"llm": self.llm}, memory_size=10)
+        # Chat with the agent
+        response = agent.chat(self.customer_request)
+        print(response)
+        # Get Clarification Questions
+        questions = agent.clarification_questions()
+        for question in questions:
+            print(question)
+        response = agent.explain()
+        print(response)"""
 
-    def run_request_with_1_df(self):
-        from llama_index.query_engine.pandas_query_engine import PandasQueryEngine
+        # vals =  "number", "dataframe", "plot", "string"
 
-        query_engine = PandasQueryEngine(df=self.selected_tables[0], verbose=True)
+        # use uuid for each request
+        # for each csv and png print result
+        # png convert to base 64
 
-        response = query_engine.query(
-            self.customer_request
-        )
+        """
+        import base64
+
+        with open("grayimage.png", "rb") as img_file:
+         b64_string = base64.b64encode(img_file.read())
+        sys.stdout.write(f"TYPE: {type}")
+        sys.stdout.write(b64_string)"""
+
+        self.clean_out_dirs('output_tables', "*.csv")
+        self.clean_out_dirs('output_plot', "*.png")
+
+        self.dl = SmartDatalake(self.selected_tables,
+                                config={"save_charts": True,
+                                        "save_charts_path": "./output_plot",
+                                        "llm": self.llm})
+
+        self.response = self.dl.chat(self.customer_request, output_type="dataframe")
+
+        current_GMT = time.gmtime()
+        time_stamp = calendar.timegm(current_GMT)
+        self.response.to_csv(f'./output_tables/table_{time_stamp}.csv')
+
+        if self.make_plot:
+            self.response.chat("Create a plot of your result.")
+
+    def add_request(self, request):
+        # self.clean_out_dirs('output_tables', "*.csv")
+        # self.clean_out_dirs('output_plot', "*.png")
+
+        new_answer = self.response.chat(request)
+        current_GMT = time.gmtime()
+        time_stamp = calendar.timegm(current_GMT)
+        new_answer.to_csv(f'./output_tables/table_{time_stamp}.csv')
+
+    def new_request(self, tables, request):
+        self.dl = SmartDatalake(tables,
+                                config={"save_charts": True,
+                                        "save_charts_path": "./output_plot",
+                                        "llm": self.llm})
+
+        new_response = self.dl.chat(request, output_type="dataframe")
+
+        current_GMT = time.gmtime()
+        time_stamp = calendar.timegm(current_GMT)
+        new_response.to_csv(f'./output_tables/table2_{time_stamp}.csv')
+
+    @staticmethod
+    def clean_out_dirs(dir_path, file_type):
+        filelist = glob.glob(os.path.join(dir_path, file_type))
+        for f in filelist:
+            os.remove(f)
 
     @staticmethod
     def load_WordContext():

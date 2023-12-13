@@ -1,7 +1,9 @@
+import os
 import glob
 import logging
 
 from pathlib import Path
+from decouple import config
 
 from prebuilt import Extractor
 from request_engine import TableSetter
@@ -12,6 +14,9 @@ logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(l
 
 logger = logging.getLogger(__name__)
 
+os.environ['API_USER'] = config('USER')
+os.environ['OPENAI_API_KEY'] = config('KEY')
+
 
 def insert():
     script_path = Path(__file__).parent.resolve()
@@ -21,7 +26,7 @@ def insert():
 
     for n in files.keys():
         # time.sleep(20)
-        setter = TableSetter(api_key, files[n])
+        setter = TableSetter(os.environ['KEY'], files[n])
         setter.run(destination_name=f'{n}')
 
 
@@ -30,11 +35,13 @@ def ask():
 
     logging.info("TESTING Quality of Software:")
 
-    extraction = Extractor(api_key,
-                           "Show me the development of sales of clothing in 2021.")
+    extraction = Extractor(os.environ['KEY'],
+                           "Summarize the sales of Apparel products per city, but exclude all sales "
+                           "that had an operating margin of less than 30%.", make_plot=True)
     extraction.get_meta_template()
     extraction.key_word_selection()
     extraction.select_tables()
+    extraction.add_request('And how many are less than 15% of them?')
 
     requests = [
         "Summarize the sales of Apparel products per city, but exclude all sales that had an operating margin of less than 30%.",

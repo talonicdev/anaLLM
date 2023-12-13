@@ -13,9 +13,7 @@ import re
 import dateutil.parser as dparser
 import yaml
 
-from enum import Enum
 from pathlib import Path
-from pandasai import PandasAI
 from pandasai.llm.openai import OpenAI
 
 from utils import load_templates, get_template, WordContext, WordException
@@ -59,7 +57,6 @@ class TableSetter:
         self.table_path = self.original_dir / dataset_name
 
         self.llm = OpenAI(api_token=api_key, engine="gpt-3.5-turbo")
-        self.pandas_ai = PandasAI(self.llm, enable_cache=False, verbose=True, conversational=True)
 
         self.key = None
         self.table = None

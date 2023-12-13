@@ -89,7 +89,7 @@ class MetaEngine(BaseEmbedding):
     def __init__(self, collection_name: str):
         super().__init__(collection_name)
 
-    def find_semantic(self, query: str, n_results=5, threshold=0.3):
+    def find_semantic(self, query: str, n_results=100, threshold=0.3):
         query_embedding = self.embedder.encode(query, convert_to_tensor=True)
         hits = util.semantic_search(query_embedding, self.corpus_embeddings, top_k=n_results)
         hits = hits[0]
