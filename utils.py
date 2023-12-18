@@ -14,6 +14,10 @@ class WordContext(Enum):
     pass
 
 
+class WordIndustries(Enum):
+    pass
+
+
 class WordException(Enum):
     MANAGEMENT = "management"
     ROW = "row"

@@ -102,6 +102,8 @@ class MetaEngine(BaseEmbedding):
                 similar_results.append(column_dict[hit['corpus_id']])
                 logging.info(f"Element: {column_dict[hit['corpus_id']]} - Score: {hit['score']}")
 
+        # TODO: Add column name of each table to output
+
         return similar_results
 
     def show_find_cos(self, corpus, query: str, n_results=5, threshold=0.3):

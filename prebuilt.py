@@ -2,11 +2,10 @@ import ast
 import os
 import logging
 import argparse
-import calendar
-import time
+import re
+import sys
 from typing import List
 import glob, os.path
-from io import StringIO
 
 from aenum import extend_enum
 
@@ -23,7 +22,7 @@ from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
 from vector_search import MetaEngine
-from utils import load_templates, get_template, WordContext
+from utils import load_templates, get_template, WordContext, WordIndustries
 
 logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
     datefmt='%Y-%m-%d:%H:%M:%S',
@@ -87,6 +86,71 @@ class Extractor:
                                             self.suffix,
                                             ["question"])
 
+    def get_industry_template(self):
+        self.template, self.prefix, self.suffix, self.examples = load_templates('industry_template')
+        self.prompt_template = get_template(self.template,
+                                            self.examples,
+                                            self.prefix,
+                                            self.suffix,
+                                            ["question"])
+
+    def get_relevant_columns(self):
+        meta_columns = [list(ast.literal_eval(self.meta_data_table['column_names'][i]).values()) for i in
+                        range(len(self.meta_data_table))]
+        table_indices = [self.meta_data_table['key'][i] for i in range(len(self.meta_data_table))]
+
+        me = MetaEngine('industry_collection')
+
+        vec_num = 0
+
+        for col, table_index in zip(meta_columns, table_indices):
+            me.embed_new_vec(vec_num, table_index, col)
+            vec_num += len(col)
+
+        me.load_vec()
+
+        temp_res = []
+
+        similar_results = me.find_semantic('industry')
+        # TODO: get the columns of tables from find_semantic
+        for res in similar_results:
+            temp_res.append(res[0])
+
+        self.selected_table_keys = [value for value in temp_res if value in self.selected_table_keys]
+        self.selected_table_keys = list(set(self.selected_table_keys))
+
+    def get_industry(self) -> str:
+        """
+        Via Completion (gpt) estimates context of given table.
+        :return: context value
+        """
+        self.get_relevant_columns()
+        self.get_industry_template()
+
+        #TODO: load values from each column called summary
+        summary = None
+        context_lib = [item.value for item in WordIndustries]
+
+        from langchain.llms import OpenAI
+
+        openai = OpenAI(
+            model_name="text-davinci-003",
+            openai_api_key=self.openai_api_key
+        )
+
+        completion = openai(
+            self.prompt_template.format(
+                summary=summary,
+                options=context_lib)
+        )
+
+        print(completion)
+
+        match = re.search(r'\bindustry\b', completion)
+        pos = match.span()
+        industry = completion[pos[1] + 4:-1]
+        return industry
+
     def key_word_selection(self):
         prompt = self.prompt_template.format(question=self.customer_request)
         prompt_template = ChatPromptTemplate.from_template(prompt)
@@ -127,7 +191,6 @@ class Extractor:
 
         self.selected_table_keys = list(set(self.selected_table_keys))
         self.get_tables()
-        self.run_request()
 
     def get_tables(self):
         logging.info(f"SELECTED TABLES")
@@ -156,45 +219,54 @@ class Extractor:
         response = agent.explain()
         print(response)"""
 
-        # vals =  "number", "dataframe", "plot", "string"
-
-        # use uuid for each request
-        # for each csv and png print result
-        # png convert to base 64
-
-        """
-        import base64
-
-        with open("grayimage.png", "rb") as img_file:
-         b64_string = base64.b64encode(img_file.read())
-        sys.stdout.write(f"TYPE: {type}")
-        sys.stdout.write(b64_string)"""
-
-        self.clean_out_dirs('output_tables', "*.csv")
-        self.clean_out_dirs('output_plot', "*.png")
-
         self.dl = SmartDatalake(self.selected_tables,
                                 config={"save_charts": True,
                                         "save_charts_path": "./output_plot",
                                         "llm": self.llm})
 
         self.response = self.dl.chat(self.customer_request, output_type="dataframe")
-
-        current_GMT = time.gmtime()
-        time_stamp = calendar.timegm(current_GMT)
-        self.response.to_csv(f'./output_tables/table_{time_stamp}.csv')
+        self.response.to_csv(f'./output_tables/table_{self.get_uuid_name()}.csv')
 
         if self.make_plot:
             self.response.chat("Create a plot of your result.")
 
-    def add_request(self, request):
-        # self.clean_out_dirs('output_tables', "*.csv")
-        # self.clean_out_dirs('output_plot', "*.png")
+    def clean(self):
+        self.write_out_files()
 
+        self.clean_out_dirs('output_tables', "*.csv")
+        self.clean_out_dirs('output_plot', "*.png")
+
+    @staticmethod
+    def write_out_files():
+        import base64
+
+        filelist = glob.glob(os.path.join('./output_plot', '*.png'))
+        for f in filelist:
+            with open(f, 'rb') as image_file:
+                encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+                sys.stdout.write(f"TYPE: image\n")
+                sys.stdout.write(encoded_string)
+                sys.stdout.write("\n")
+
+        filelist = glob.glob(os.path.join('./output_tables', '*.csv'))
+        for f in filelist:
+            sys.stdout.write(f"TYPE: table\n")
+            with open(f, "r") as my_input_file:
+                for idx, line in enumerate(my_input_file):
+                    line = line.split(",", 2)[1:]
+                    if idx == 0:
+                        line = ['index'] + line
+                    sys.stdout.write(",".join(line))
+            sys.stdout.write("\n")
+
+    @staticmethod
+    def get_uuid_name():
+        import uuid
+        return uuid.uuid1()
+
+    def add_request(self, request):
         new_answer = self.response.chat(request)
-        current_GMT = time.gmtime()
-        time_stamp = calendar.timegm(current_GMT)
-        new_answer.to_csv(f'./output_tables/table_{time_stamp}.csv')
+        new_answer.to_csv(f'./output_tables/table_{self.get_uuid_name()}.csv')
 
     def new_request(self, tables, request):
         self.dl = SmartDatalake(tables,
@@ -203,10 +275,7 @@ class Extractor:
                                         "llm": self.llm})
 
         new_response = self.dl.chat(request, output_type="dataframe")
-
-        current_GMT = time.gmtime()
-        time_stamp = calendar.timegm(current_GMT)
-        new_response.to_csv(f'./output_tables/table2_{time_stamp}.csv')
+        new_response.to_csv(f'./output_tables/table_new_{self.get_uuid_name()}.csv')
 
     @staticmethod
     def clean_out_dirs(dir_path, file_type):
@@ -227,6 +296,19 @@ class Extractor:
                 if WordContext_dict[key] not in [item.value for item in WordContext]:
                     extend_enum(WordContext, f'{key}', WordContext_dict[key])
 
+    @staticmethod
+    def load_WordIndustries():
+        """
+        Loads context attributes into enum class named WordContext.
+        """
+        if Path('WordIndustries.yaml').is_file():
+            with open('WordIndustries.yaml', 'r') as f:
+                WordContext_dict = yaml.safe_load(f)
+
+            for key in WordContext_dict:
+                if WordContext_dict[key] not in [item.value for item in WordContext]:
+                    extend_enum(WordContext, f'{key}', WordContext_dict[key])
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='')
@@ -239,3 +321,5 @@ if __name__ == "__main__":
     extraction.get_meta_template()
     extraction.key_word_selection()
     extraction.select_tables()
+    extraction.run_request()
+    extraction.clean()

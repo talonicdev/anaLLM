@@ -25,7 +25,6 @@ def insert():
     files = {Path(p).stem: Path(p).name for p in files_path}
 
     for n in files.keys():
-        # time.sleep(20)
         setter = TableSetter(os.environ['KEY'], files[n])
         setter.run(destination_name=f'{n}')
 
@@ -41,7 +40,9 @@ def ask():
     extraction.get_meta_template()
     extraction.key_word_selection()
     extraction.select_tables()
-    extraction.add_request('And how many are less than 15% of them?')
+    extraction.run_request()
+    extraction.clean()
+    # extraction.add_request('And how many are less than 15% of them?')
 
     requests = [
         "Summarize the sales of Apparel products per city, but exclude all sales that had an operating margin of less than 30%.",

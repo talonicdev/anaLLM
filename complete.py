@@ -35,34 +35,33 @@ class CompleteTable:
 
     def get_empty_cols(self):
         empty_cols = []
+        original_cols =[]
         for col in self.table.columns:
             if self.table[col].isnull().sum().sum() == self.table.shape[0]:
-                empty_cols.append(col)
+                empty_cols.append(col.lower())
+                original_cols.append(col)
 
-        empty_cols = ['Amount less then 50 US$']
-        self.create_table(empty_cols)
+        self.create_table(empty_cols, original_cols)
 
-    def get_meta_template(self):
-        self.template, self.prefix, self.suffix, self.examples = load_templates('meta_template')
-        self.prompt_template = get_template(self.template,
-                                            self.examples,
-                                            self.prefix,
-                                            self.suffix,
-                                            ["question"])
+    def create_table(self, empty_cols: list, original_cols: list):
+        import uuid
 
-    def create_table(self, empty_cols):
-        txt = (f"{e}," for e in empty_cols)
-        request = ' '.join(txt)
-        request = "Extract " + request + " from the given dataframes."
+        txt = (f"{e}" for e in empty_cols)
+        request = ', '.join(txt)
+        obj_elem = ', '.join(("'" + f"{e}" + "'" for e in self.table.iloc[:, 0].to_list()))
+        request = f"Calculate the " + f"{request}" + f" for {obj_elem} ."
 
         extraction = Extractor(os.environ['KEY'], request)
 
         extraction.get_meta_template()
         extraction.key_word_selection()
         extraction.select_tables()
+        extraction.run_request()
 
-        extraction.new_request([self.table, extraction.response], "Fill the empty columns of the first dataframe.")
-        # print("Done")
+        res_df = pd.merge(self.table, extraction.response, on=self.table.columns[0])
+        res_df.drop(columns=original_cols, inplace=True)
+        res_df.to_csv(f'./output_tables/filled_table_{uuid.uuid1()}.csv')
+        # extraction.clean()
 
     @staticmethod
     def load_results():

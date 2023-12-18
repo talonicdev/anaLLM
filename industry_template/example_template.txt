@@ -1,0 +1,7 @@
+EXAMPLE:
+Background Info: A list of words, called 'summary', from a company will be given to you. This summary are values from dataframes from that company. 'options' is a list of possible industries.
+Tasks: 1. Find the correct industry from options that can be assigned to that company. 2. If a similar industry already exists in 'options' choose instead this one.
+Rules: 1. Return your result as "industry = " and then your result. 2. Do NOT add any explanation to you answer.
+summary: {summary}
+options: {options}
+answer: {answer}
