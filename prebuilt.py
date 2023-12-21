@@ -60,6 +60,7 @@ class Extractor:
 
         self.keys_words = None
         self.response = None
+        self.new_response = None
 
         self.selected_table_keys = []
         self.selected_tables = []
@@ -85,71 +86,6 @@ class Extractor:
                                             self.prefix,
                                             self.suffix,
                                             ["question"])
-
-    def get_industry_template(self):
-        self.template, self.prefix, self.suffix, self.examples = load_templates('industry_template')
-        self.prompt_template = get_template(self.template,
-                                            self.examples,
-                                            self.prefix,
-                                            self.suffix,
-                                            ["question"])
-
-    def get_relevant_columns(self):
-        meta_columns = [list(ast.literal_eval(self.meta_data_table['column_names'][i]).values()) for i in
-                        range(len(self.meta_data_table))]
-        table_indices = [self.meta_data_table['key'][i] for i in range(len(self.meta_data_table))]
-
-        me = MetaEngine('industry_collection')
-
-        vec_num = 0
-
-        for col, table_index in zip(meta_columns, table_indices):
-            me.embed_new_vec(vec_num, table_index, col)
-            vec_num += len(col)
-
-        me.load_vec()
-
-        temp_res = []
-
-        similar_results = me.find_semantic('industry')
-        # TODO: get the columns of tables from find_semantic
-        for res in similar_results:
-            temp_res.append(res[0])
-
-        self.selected_table_keys = [value for value in temp_res if value in self.selected_table_keys]
-        self.selected_table_keys = list(set(self.selected_table_keys))
-
-    def get_industry(self) -> str:
-        """
-        Via Completion (gpt) estimates context of given table.
-        :return: context value
-        """
-        self.get_relevant_columns()
-        self.get_industry_template()
-
-        #TODO: load values from each column called summary
-        summary = None
-        context_lib = [item.value for item in WordIndustries]
-
-        from langchain.llms import OpenAI
-
-        openai = OpenAI(
-            model_name="text-davinci-003",
-            openai_api_key=self.openai_api_key
-        )
-
-        completion = openai(
-            self.prompt_template.format(
-                summary=summary,
-                options=context_lib)
-        )
-
-        print(completion)
-
-        match = re.search(r'\bindustry\b', completion)
-        pos = match.span()
-        industry = completion[pos[1] + 4:-1]
-        return industry
 
     def key_word_selection(self):
         prompt = self.prompt_template.format(question=self.customer_request)
@@ -227,6 +163,9 @@ class Extractor:
         self.response = self.dl.chat(self.customer_request, output_type="dataframe")
         self.response.to_csv(f'./output_tables/table_{self.get_uuid_name()}.csv')
 
+        # "What is the industry of this dataframe?"  output_type="string"
+        # 'The industry of this dataframe is Streaming Service.'
+
         if self.make_plot:
             self.response.chat("Create a plot of your result.")
 
@@ -268,14 +207,16 @@ class Extractor:
         new_answer = self.response.chat(request)
         new_answer.to_csv(f'./output_tables/table_{self.get_uuid_name()}.csv')
 
-    def new_request(self, tables, request):
+    def new_request(self, tables, request, output_type):
         self.dl = SmartDatalake(tables,
                                 config={"save_charts": True,
                                         "save_charts_path": "./output_plot",
                                         "llm": self.llm})
 
-        new_response = self.dl.chat(request, output_type="dataframe")
-        new_response.to_csv(f'./output_tables/table_new_{self.get_uuid_name()}.csv')
+        self.new_response = self.dl.chat(request, output_type=output_type)
+
+        if output_type == "dataframe":
+            self.new_response.to_csv(f'./output_tables/table_new_{self.get_uuid_name()}.csv')
 
     @staticmethod
     def clean_out_dirs(dir_path, file_type):

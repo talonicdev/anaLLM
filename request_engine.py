@@ -14,6 +14,8 @@ import dateutil.parser as dparser
 import yaml
 
 from pathlib import Path
+
+from decouple import config
 from pandasai.llm.openai import OpenAI
 
 from utils import load_templates, get_template, WordContext, WordException
@@ -222,8 +224,8 @@ class TableSetter:
                        f'{[self.table.iloc[:, i].tolist()[:np.min(np.array([10, len(self.table.index)]))] for i in range(len(self.table.columns))]} '
                        f'in one or two words.')
 
-        name_response = openai.Completion.create(
-            engine="text-davinci-003",
+        name_response = openai.completions.create(
+            model="gpt-3.5-turbo-instruct",
             prompt=name_prompt,
             temperature=0.6,
             max_tokens=150,
