@@ -1,4 +1,3 @@
-import ast
 import os
 import logging
 
@@ -15,10 +14,9 @@ import yaml
 
 from pathlib import Path
 
-from decouple import config
 from pandasai.llm.openai import OpenAI
 
-from utils import load_templates, get_template, WordContext, WordException
+from utils.conf import load_templates, get_template, WordContext, WordException
 
 logging.basicConfig(filename='prebuilt.log',
                     format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -385,7 +383,7 @@ class TableSetter:
         Saves all context attributes into yaml file.
         """
         WordContext_dict = {i.name: i.value for i in WordContext}
-        with open('./WordContext.yaml', 'w', ) as f:
+        with open('utils/WordContext.yaml', 'w', ) as f:
             yaml.dump(WordContext_dict, f, sort_keys=False)
 
     @staticmethod
@@ -393,8 +391,8 @@ class TableSetter:
         """
         Loads context attributes into enum class named WordContext.
         """
-        if Path('WordContext.yaml').is_file():
-            with open('WordContext.yaml', 'r') as f:
+        if Path('utils/WordContext.yaml').is_file():
+            with open('utils/WordContext.yaml', 'r') as f:
                 WordContext_dict = yaml.safe_load(f)
 
             for key in WordContext_dict:

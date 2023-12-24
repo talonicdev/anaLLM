@@ -1,3 +1,4 @@
+import argparse
 import os
 import glob
 import logging
@@ -39,10 +40,10 @@ class PredictMeta:
 
     def __init__(self,
                  openai_api_key: str,
-                 tables_dir: str):
+                 tables_dirs: str):
 
         self.openai_api_key = openai_api_key
-        self.tables_dir = Path(tables_dir)
+        self.tables_dir = Path(tables_dirs)
         self.tables = []
 
     def load_tables(self):
@@ -78,7 +79,12 @@ class PredictMeta:
 
 
 if __name__ == "__main__":
-    m = PredictMeta(os.environ['KEY'], "/Users/stella/talonic/anaLLM/datasets/original")
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('-o', '--openai_api_key', help='OPENAI Key', required=True)
+    parser.add_argument('-d', '-table_dirs', help='irectory with all tables.', required=True)
+    args = parser.parse_args()
+
+    m = PredictMeta(**vars(args))
     m.load_tables()
     m.get_meta()
 

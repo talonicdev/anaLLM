@@ -2,7 +2,6 @@ import ast
 import os
 import logging
 import argparse
-import re
 import sys
 from typing import List
 import glob, os.path
@@ -13,16 +12,14 @@ import pandas as pd
 import yaml
 
 from pathlib import Path
-from pandasai import SmartDataframe
 from pandasai import SmartDatalake
-from pandasai import Agent
 from pandasai.llm import OpenAI
 
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
 from vector_search import MetaEngine
-from utils import load_templates, get_template, WordContext, WordIndustries
+from utils.conf import load_templates, get_template, WordContext
 
 logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
     datefmt='%Y-%m-%d:%H:%M:%S',
@@ -38,6 +35,14 @@ class Extractor:
                  customer_request: str,
                  make_plot: bool = False,
                  selected_tables: List[str] = None):
+
+        """
+        Initialize a request object.
+        :param openai_api_key: openai api key
+        :param customer_request: request from customer
+        :param make_plot: options: True / False - if for this specific request a plot be generated
+        :param selected_tables: use only specific tables to obtain the answer to your request
+        """
 
         os.environ['OPENAI_API_KEY'] = openai_api_key
 
@@ -69,7 +74,12 @@ class Extractor:
 
         # save file name for each table
 
-    def get_selected_tables(self, selected_tables):
+    def get_selected_tables(self,
+                            selected_tables):
+        """
+        load selected tables
+        :param selected_tables: list of paths
+        """
         import copy
         selected_df = list()
         for name in selected_tables:
@@ -80,6 +90,9 @@ class Extractor:
         self.meta_data_table.reset_index(drop=True, inplace=True)
 
     def get_meta_template(self):
+        """
+        load the meta data template
+        """
         self.template, self.prefix, self.suffix, self.examples = load_templates('meta_template')
         self.prompt_template = get_template(self.template,
                                             self.examples,
@@ -88,6 +101,9 @@ class Extractor:
                                             ["question"])
 
     def key_word_selection(self):
+        """
+        It selects useful key words from the given request
+        """
         prompt = self.prompt_template.format(question=self.customer_request)
         prompt_template = ChatPromptTemplate.from_template(prompt)
         message = prompt_template.format_messages()
@@ -98,6 +114,10 @@ class Extractor:
         self.keys_words = ast.literal_eval(response.content)
 
     def select_tables(self):
+        """
+        It selects useful tables indices to answer the given request based on key words.
+        Results are in selected_table_keys.
+        """
         meta_columns = [list(ast.literal_eval(self.meta_data_table['column_names'][i]).values()) for i in range(len(self.meta_data_table))]
         table_indices = [self.meta_data_table['key'][i] for i in range(len(self.meta_data_table))]
 
@@ -129,6 +149,9 @@ class Extractor:
         self.get_tables()
 
     def get_tables(self):
+        """
+        Loads the tables based on the selected tables indices. Results are in selected_tables.
+        """
         logging.info(f"SELECTED TABLES")
         pd.set_option('display.max_columns', None)
 
@@ -161,15 +184,18 @@ class Extractor:
                                         "llm": self.llm})
 
         self.response = self.dl.chat(self.customer_request, output_type="dataframe")
-        self.response.to_csv(f'./output_tables/table_{self.get_uuid_name()}.csv')
-
-        # "What is the industry of this dataframe?"  output_type="string"
-        # 'The industry of this dataframe is Streaming Service.'
+        try:
+            self.response.to_csv(f'./output_tables/table_{self.get_uuid_name()}.csv')
+        except:
+            raise ValueError(f"{self.response}")
 
         if self.make_plot:
             self.response.chat("Create a plot of your result.")
 
     def clean(self):
+        """
+        Cleans each temp directory.
+        """
         self.write_out_files()
 
         self.clean_out_dirs('output_tables', "*.csv")
@@ -177,6 +203,9 @@ class Extractor:
 
     @staticmethod
     def write_out_files():
+        """
+        Writes out the results of a request.
+        """
         import base64
 
         filelist = glob.glob(os.path.join('./output_plot', '*.png'))
@@ -200,14 +229,28 @@ class Extractor:
 
     @staticmethod
     def get_uuid_name():
+        """
+        Get uuid.
+        """
         import uuid
         return uuid.uuid1()
 
-    def add_request(self, request):
+    def add_request(self,
+                    request: str):
+        """
+        Add to existing a new request.
+        :param request: request based on previous one.
+        """
         new_answer = self.response.chat(request)
         new_answer.to_csv(f'./output_tables/table_{self.get_uuid_name()}.csv')
 
     def new_request(self, tables, request, output_type):
+        """
+        Create a new request within the same session.
+        :param tables: table to be used.
+        :param request: customer request
+        :param output_type: type of output. ex.: dataframe, str
+        """
         self.dl = SmartDatalake(tables,
                                 config={"save_charts": True,
                                         "save_charts_path": "./output_plot",
@@ -220,6 +263,9 @@ class Extractor:
 
     @staticmethod
     def clean_out_dirs(dir_path, file_type):
+        """
+        Cleans a specific temp directory.
+        """
         filelist = glob.glob(os.path.join(dir_path, file_type))
         for f in filelist:
             os.remove(f)
@@ -229,8 +275,8 @@ class Extractor:
         """
         Loads context attributes into enum class named WordContext.
         """
-        if Path('WordContext.yaml').is_file():
-            with open('WordContext.yaml', 'r') as f:
+        if Path('utils/WordContext.yaml').is_file():
+            with open('utils/WordContext.yaml', 'r') as f:
                 WordContext_dict = yaml.safe_load(f)
 
             for key in WordContext_dict:
@@ -242,8 +288,8 @@ class Extractor:
         """
         Loads context attributes into enum class named WordContext.
         """
-        if Path('WordIndustries.yaml').is_file():
-            with open('WordIndustries.yaml', 'r') as f:
+        if Path('utils/WordIndustries.yaml').is_file():
+            with open('utils/WordIndustries.yaml', 'r') as f:
                 WordContext_dict = yaml.safe_load(f)
 
             for key in WordContext_dict:

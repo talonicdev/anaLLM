@@ -1,0 +1,7 @@
+EXAMPLE:
+Background Info: A dataframe with several columns is given to us. One of these columns is empty, which is called 'new_column'. We need to fill this column with values according to the information obtained by some of the other columns. 'exists' is a list with the column names that are already filled with values.
+Tasks: 1. Determine which columns might be useful to fill the empty column, 'new_column'. Define the task based on the name of the columns.
+Rules: 1. Return your result as "request = " and then your result. 2. Start your answer with 'Calculate ...'. 3. List the columns that are useful to fill the empty column. 4.Do NOT add any explanation to you answer.
+new_column: {new_column}
+exists: {exists}
+answer: {answer}

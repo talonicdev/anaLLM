@@ -10,14 +10,10 @@ import pandas as pd
 import torch
 import yaml
 
-from tqdm import tqdm
 from decouple import config
-from pathlib import Path
-from numpy.linalg import norm
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score
-from torch.utils.data import Dataset, DataLoader
 
 import chromadb
 
@@ -25,7 +21,7 @@ from sentence_transformers import SentenceTransformer, util
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
-from utils import load_templates, get_template, load_datasets
+from utils.conf import load_templates, get_template, load_datasets
 
 
 os.environ['API_USER'] = config('USER')
