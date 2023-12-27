@@ -183,11 +183,13 @@ class Extractor:
                                         "save_charts_path": "./output_plot",
                                         "llm": self.llm})
 
-        self.response = self.dl.chat(self.customer_request, output_type="dataframe")
-        try:
+        self.response = self.dl.chat(self.customer_request)
+        if isinstance(self.response, str):
+            sys.stdout.write(f"TYPE: string\n")
+            sys.stdout.write(self.response)
+            sys.stdout.write("\n")
+        else:
             self.response.to_csv(f'./output_tables/table_{self.get_uuid_name()}.csv')
-        except:
-            raise ValueError(f"{self.response}")
 
         if self.make_plot:
             self.response.chat("Create a plot of your result.")
