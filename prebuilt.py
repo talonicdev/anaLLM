@@ -178,6 +178,8 @@ class Extractor:
         response = agent.explain()
         print(response)"""
 
+        self.clean()
+
         self.dl = SmartDatalake(self.selected_tables,
                                 config={"save_charts": True,
                                         "save_charts_path": "./output_plot",
@@ -188,6 +190,8 @@ class Extractor:
             sys.stdout.write(f"TYPE: string\n")
             sys.stdout.write(self.response)
             sys.stdout.write("\n")
+        elif isinstance(self.response, dict):
+            pass
         else:
             self.response.to_csv(f'./output_tables/table_{self.get_uuid_name()}.csv')
 

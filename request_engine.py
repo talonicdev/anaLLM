@@ -179,8 +179,6 @@ class TableSetter:
                     0])
         )
 
-        print(completion)
-
         match = re.search(r'\bdescription\b', completion)
         try:
             pos = match.span()
