@@ -74,7 +74,6 @@ class PredictMeta:
 
         extraction.new_request(self.tables, f"What is the {meta} of this dataframe?", "string")
         sys.stdout.write(extraction.new_response)
-        print(extraction.new_response)
         extraction.clean()
 
 

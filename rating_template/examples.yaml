@@ -1,0 +1,24 @@
+example1:
+  new_column: 'rating'
+  exists: '[[''product'', ''expenses'', ''key'', ''customer answer'']]'
+  answer: "request = True. Useful columns = 'customer answer'"
+
+example2:
+  new_column: 'satisfaction'
+  exists: '[[''customer'', ''area zip code'', ''answer'', ''service'']]'
+  answer: "request = True. Useful columns = 'answer'"
+
+example3:
+  new_column: 'sales volume'
+  exists: '[[''product'', ''production cost'', ''staff expenses'', ''other expenses'', ''material'', ''revenue'']]'
+  answer: "request = False. Useful columns = "
+
+example4:
+  new_column: 'measure'
+  exists: '[[''product'', ''material'', ''feedback'']]'
+  answer: "request = True. Useful columns = 'feedback'"
+
+example5:
+  new_column: 'measure'
+  exists: '[[''product'', ''material'', ''production cost'', ''weight'']]'
+  answer: "request = False. Useful columns = "

@@ -1,6 +1,7 @@
 import os
 import ast
 import logging
+from pathlib import Path
 from typing import List
 
 import copy
@@ -16,6 +17,7 @@ from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score
 
 import chromadb
+from chromadb.config import Settings
 
 from sentence_transformers import SentenceTransformer, util
 from langchain.chat_models import ChatOpenAI
@@ -37,14 +39,24 @@ logger = logging.getLogger(__name__)
 
 class BaseEmbedding:
 
-    def __init__(self, collection_name: str):
+    def __init__(self):
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
-        chroma_client = chromadb.Client()
-        self.collection = chroma_client.get_or_create_collection(name=collection_name)
+        cwd = Path(__file__).parent.resolve()
+        self.chroma_client = chromadb.PersistentClient(path=f"{cwd}/vectorDB/")
+        # chroma_client = chromadb.HttpClient(host='localhost', port=8000)
+        # chroma_client = chromadb.Client()
+        # self.collection = chroma_client.get_or_create_collection(name=collection_name)
 
         self.corpus_embeddings = torch.zeros(size=(1, 0))
         self.collection_dict = None
+        self.collection = None
+
+    def create_new_collection(self, collection_name):
+        self.collection = self.chroma_client.create_collection(name=collection_name)
+
+    def load_collection(self, collection_name):
+        self.collection = self.chroma_client.get_collection(name=collection_name)
 
     def embed_new_vec(self, vec_num, table_index, corpus):
         new_embed = self.embedder.encode(corpus, convert_to_tensor=True, show_progress_bar=True)
@@ -69,21 +81,9 @@ class BaseEmbedding:
         self.corpus_embeddings = torch.FloatTensor(dataset['embeddings'])
 
 
-class ColumnEstimator:
-
-    def __init__(self):
-        pass
-
-    # 1. split values into n=1 sets of columns
-    # 2. llm guess the topic it can use reference tables
-    # 3. embed topic and values and estimate to which column it belongs the best (semantic similarity) and add it to this column
-    # 4. split values into n+1 sets of columns
-    # 5. repeat step 2 till 4
-
-
 class MetaEngine(BaseEmbedding):
-    def __init__(self, collection_name: str):
-        super().__init__(collection_name)
+    def __init__(self):
+        super().__init__()
 
     def find_semantic(self, query: str, n_results=100, threshold=0.3):
         query_embedding = self.embedder.encode(query, convert_to_tensor=True)
@@ -97,8 +97,6 @@ class MetaEngine(BaseEmbedding):
             if hit['score'] >= threshold:
                 similar_results.append(column_dict[hit['corpus_id']])
                 logging.info(f"Element: {column_dict[hit['corpus_id']]} - Score: {hit['score']}")
-
-        # TODO: Add column name of each table to output
 
         return similar_results
 

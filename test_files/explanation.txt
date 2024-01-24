@@ -1,0 +1,9 @@
+Sure, I'd be happy to explain!
+
+First, I created a new column called 'Total Expenses' in our data. This was calculated by subtracting the 'Total Profit' from the 'Total Sales' for each row of data.
+
+Next, I created another new column called 'Expense Per Unit'. This was calculated by dividing the 'Total Expenses' by the number of 'Units Sold' for each row of data.
+
+After that, I grouped the data by both 'Product' and 'Sales Method'. For each unique combination of 'Product' and 'Sales Method', I calculated the sum of 'Total Expenses' and the average of 'Expense Per Unit'.
+
+Finally, I reset the index of the data to make it easier to read and use later on. The final result is a table that shows the total expenses and average expense per unit for each product based on the sales method.

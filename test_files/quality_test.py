@@ -2,9 +2,12 @@ import os
 import glob
 import logging
 
+import pandas as pd
+
 from pathlib import Path
 from decouple import config
 
+from complete import CompleteTable
 from prebuilt import Extractor
 from request_engine import TableSetter
 
@@ -16,6 +19,24 @@ logger = logging.getLogger(__name__)
 
 os.environ['API_USER'] = config('USER')
 os.environ['OPENAI_API_KEY'] = config('KEY')
+
+
+def test_complete_table():
+    '''file = open('./test_files/test_file.txt', "r")
+    content = file.read()
+    ct = CompleteTable(openai_api_key=os.environ['KEY'], content=content)'''
+
+    '''df = pd.read_excel('/Users/stella/talonic/anaLLM/test_files/multi_table.xlsx')
+    df.columns = df.iloc[0].to_list()
+    df = df.iloc[1:]
+    df.drop(columns=['Expense per Unit'], inplace=True)
+    df.to_excel('/Users/stella/talonic/anaLLM/test_files/single_table.xlsx')'''
+
+    # ct = CompleteTable(openai_api_key=os.environ['KEY'], table_path='./multi_table.xlsx')
+    ct = CompleteTable(openai_api_key=os.environ['KEY'], table_path='./rating_table.xlsx')
+    e_cols, o_cols = ct.get_empty_cols()
+    c_request, useful, exists_cols, empty_cols = ct.get_table_question(e_cols, o_cols)
+    ct.create_table(c_request, useful, exists_cols, empty_cols)
 
 
 def insert():
@@ -66,4 +87,4 @@ def ask():
 
 
 if __name__ == "__main__":
-    ask()
+    test_complete_table()

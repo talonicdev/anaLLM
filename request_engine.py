@@ -1,3 +1,4 @@
+import ast
 import os
 import logging
 
@@ -17,6 +18,7 @@ from pathlib import Path
 from pandasai.llm.openai import OpenAI
 
 from utils.conf import load_templates, get_template, WordContext, WordException
+from vector_search import MetaEngine
 
 logging.basicConfig(filename='prebuilt.log',
                     format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -96,11 +98,11 @@ class TableSetter:
         Inserts values for all columns of row entry with given key.
         """
         self.columns_info()
-        self.scopes()
         self.get_summary()
         if self.terminate:
             return
         self.context()
+        self.load_into_vector_db()
         self.save_meta_data_table()
 
     def run(self, destination_name: str = None, table_key: str = None):
@@ -148,7 +150,7 @@ class TableSetter:
 
         self.load_table(self.key)
         self.meta_data_table.loc[len(self.meta_data_table.index)] = [
-            self.key, str(self.table_path), table_name, creation_date, last_update, *[None] * 5
+            self.key, str(self.table_path), table_name, creation_date, last_update, *[None] * 3
         ]
 
     def get_summary_template(self):
@@ -199,8 +201,6 @@ class TableSetter:
 
         # update types
         self.column_description = [x.strip() for x in self.get_column_description()[2:].split(',')]
-        self.update_column_types()
-        column_type = str({i: t.name for i, t in enumerate(self.table.dtypes.tolist())})
 
         if self.table.columns.tolist()[0] not in list(set(self.table.iloc[:, 0])):
             column_names = str({i: e for i, e in enumerate(self.table.columns.values.tolist())})
@@ -209,7 +209,6 @@ class TableSetter:
             self.table.loc[len(self.table.index)] = self.table.columns.tolist()
 
         self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_names'] = column_names
-        self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_type'] = column_type
 
     def get_column_description(self) -> str:
         """
@@ -264,21 +263,6 @@ class TableSetter:
         new_col = {f'unit_{name}': self.table.iloc[:, idx].apply(lambda x: x.split(' ')[1])}
         self.table = self.table.assign(**new_col)
         self.table.iloc[:, idx] = self.table.iloc[:, idx].apply(lambda x: float(x.split(' ')[0]))
-
-    def update_column_types(self) -> None:
-        """
-        Checks if column type is string and if this string contains numbers and symbols to find date times and distances
-        :param idx: column
-        :return: updates formats of date times and distances in strings
-        """
-        for idx, col in enumerate(self.column_description):
-            if isinstance(self.table.iloc[:, idx].tolist()[0], str):
-                if bool(re.search(r'\d', self.table.iloc[:, idx].tolist()[0])):
-                    try:
-                        self.date_format(idx)
-                    except:
-                        if self.unit_checker(idx):
-                            self.distance_format(idx)
 
     def get_context_template(self):
         self.template, self.prefix, self.suffix, self.examples = load_templates('context_template')
@@ -396,6 +380,18 @@ class TableSetter:
             for key in WordContext_dict:
                 if WordContext_dict[key] not in [item.value for item in WordContext]:
                     extend_enum(WordContext, f'{key}', WordContext_dict[key])
+
+    def load_into_vector_db(self):
+        me = MetaEngine()
+
+        meta_columns = [list(ast.literal_eval(self.meta_data_table['column_names'][i]).values()) for i in range(len(self.meta_data_table))]
+        table_indices = [self.meta_data_table['key'][i] for i in range(len(self.meta_data_table))]
+
+        me.create_new_collection('default_collection')
+        vec_num = 0
+        for col, table_index in zip(meta_columns, table_indices):
+            me.embed_new_vec(vec_num, table_index, col)
+            vec_num += len(col)
 
     def save_meta_data_table(self) -> None:
         """

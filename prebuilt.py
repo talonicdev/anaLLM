@@ -10,9 +10,10 @@ from aenum import extend_enum
 
 import pandas as pd
 import yaml
+import pandasai
 
 from pathlib import Path
-from pandasai import SmartDatalake
+from pandasai import SmartDatalake, Agent
 from pandasai.llm import OpenAI
 
 from langchain.chat_models import ChatOpenAI
@@ -49,9 +50,10 @@ class Extractor:
         self.openai_api_key = openai_api_key
         self.customer_request = customer_request
         self.make_plot = make_plot
-        self.llm = OpenAI(api_token=openai_api_key, model="gpt-4", max_tokens=1000)
+        self.llm = OpenAI(api_token=openai_api_key, model="gpt-4-", max_tokens=1000) #
+        self.cwd = Path(__file__).parent.resolve()
 
-        self.meta_data_table = pd.read_json('datasets/meta_data_table.json')
+        self.meta_data_table = pd.read_json(self.cwd / 'datasets/meta_data_table.json')
         if selected_tables:
             self.get_selected_tables(selected_tables)
         self.load_WordContext()
@@ -118,17 +120,9 @@ class Extractor:
         It selects useful tables indices to answer the given request based on key words.
         Results are in selected_table_keys.
         """
-        meta_columns = [list(ast.literal_eval(self.meta_data_table['column_names'][i]).values()) for i in range(len(self.meta_data_table))]
-        table_indices = [self.meta_data_table['key'][i] for i in range(len(self.meta_data_table))]
 
-        me = MetaEngine('test_collection')
-
-        vec_num = 0
-
-        for col, table_index in zip(meta_columns, table_indices):
-            me.embed_new_vec(vec_num, table_index, col)
-            vec_num += len(col)
-
+        me = MetaEngine()
+        me.load_collection('default_collection') # sheets for all users
         me.load_vec()
 
         temp_res = []
@@ -155,9 +149,13 @@ class Extractor:
         logging.info(f"SELECTED TABLES")
         pd.set_option('display.max_columns', None)
 
+        cwd = Path(__file__).parent.resolve()
+
         for key in self.selected_table_keys:
             table_path = Path(self.meta_data_table.loc[self.meta_data_table['key'] == key, 'path'].tolist()[0])
             file_extension = table_path.suffix
+
+            table_path = cwd / table_path
 
             if file_extension in ['.csv', '.xlsx']:
                 table = pd.read_csv(table_path) if file_extension == '.csv' else pd.read_excel(table_path)
@@ -178,25 +176,33 @@ class Extractor:
         response = agent.explain()
         print(response)"""
 
-        self.clean()
-
-        self.dl = SmartDatalake(self.selected_tables,
-                                config={"save_charts": True,
-                                        "save_charts_path": "./output_plot",
-                                        "llm": self.llm})
-
+        self.dl = Agent(self.selected_tables,
+                        config={"save_charts": True,
+                                "save_charts_path": f"{self.cwd}/output_plot",
+                                "llm": self.llm},
+                        memory_size=10)
         self.response = self.dl.chat(self.customer_request)
+        explanation = self.dl.explain()
+
         if isinstance(self.response, str):
             sys.stdout.write(f"TYPE: string\n")
             sys.stdout.write(self.response)
             sys.stdout.write("\n")
+
+            # add explain
+            sys.stdout.write(f"EXPLAIN: string\n")
+
         elif isinstance(self.response, dict):
+            # TODO: need an example with dict output
             pass
-        else:
-            self.response.to_csv(f'./output_tables/table_{self.get_uuid_name()}.csv')
+
+        elif isinstance(self.response, pandasai.smart_dataframe.SmartDataframe):
+            self.response.to_csv(f'{self.cwd}/output_tables/table_{self.get_uuid_name()}.csv')
 
         if self.make_plot:
             self.response.chat("Create a plot of your result.")
+
+        self.clean()
 
     def clean(self):
         """
@@ -204,8 +210,8 @@ class Extractor:
         """
         self.write_out_files()
 
-        self.clean_out_dirs('output_tables', "*.csv")
-        self.clean_out_dirs('output_plot', "*.png")
+        self.clean_out_dirs(f'{self.cwd}/output_tables', "*.csv")
+        self.clean_out_dirs(f'{self.cwd}/output_plot', "*.png")
 
     @staticmethod
     def write_out_files():
@@ -213,8 +219,9 @@ class Extractor:
         Writes out the results of a request.
         """
         import base64
+        cwd = Path(__file__).parent.resolve()
 
-        filelist = glob.glob(os.path.join('./output_plot', '*.png'))
+        filelist = glob.glob(os.path.join(f'{cwd}/output_plot', '*.png'))
         for f in filelist:
             with open(f, 'rb') as image_file:
                 encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
@@ -222,14 +229,13 @@ class Extractor:
                 sys.stdout.write(encoded_string)
                 sys.stdout.write("\n")
 
-        filelist = glob.glob(os.path.join('./output_tables', '*.csv'))
+        filelist = glob.glob(os.path.join(f'{cwd}/output_tables', '*.csv'))
         for f in filelist:
             sys.stdout.write(f"TYPE: table\n")
             with open(f, "r") as my_input_file:
                 for idx, line in enumerate(my_input_file):
-                    line = line.split(",", 2)[1:]
-                    if idx == 0:
-                        line = ['index'] + line
+                    line = line.split(",")[1:]
+                    line[-1] = line[-1][:-1]
                     sys.stdout.write(",".join(line))
             sys.stdout.write("\n")
 
@@ -248,7 +254,7 @@ class Extractor:
         :param request: request based on previous one.
         """
         new_answer = self.response.chat(request)
-        new_answer.to_csv(f'./output_tables/table_{self.get_uuid_name()}.csv')
+        new_answer.to_csv(f'{self.cwd}/output_tables/table_{self.get_uuid_name()}.csv')
 
     def new_request(self, tables, request, output_type):
         """
@@ -265,7 +271,7 @@ class Extractor:
         self.new_response = self.dl.chat(request, output_type=output_type)
 
         if output_type == "dataframe":
-            self.new_response.to_csv(f'./output_tables/table_new_{self.get_uuid_name()}.csv')
+            self.new_response.to_csv(self.cwd / f'output_tables/table_new_{self.get_uuid_name()}.csv')
 
     @staticmethod
     def clean_out_dirs(dir_path, file_type):

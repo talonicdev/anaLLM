@@ -1,0 +1,6 @@
+,KPI metrics,Goal,Achieved
+0,CAC,52258,
+1,Churn Rate,3%,
+2,Conversion Rate,10%,
+3,Gross Margin,8%,
+4,Gross Profit,3344362.33100233,
