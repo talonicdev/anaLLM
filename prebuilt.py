@@ -33,6 +33,8 @@ class Extractor:
 
     def __init__(self,
                  openai_api_key: str,
+                 api_key: str,
+                 token: str,
                  customer_request: str,
                  make_plot: bool = False,
                  selected_tables: List[str] = None):
@@ -47,18 +49,22 @@ class Extractor:
 
         os.environ['OPENAI_API_KEY'] = openai_api_key
 
+        self.api_key = api_key
+        self.token = token
         self.openai_api_key = openai_api_key
         self.customer_request = customer_request
         self.make_plot = make_plot
         self.llm = OpenAI(api_token=openai_api_key, model="gpt-4-", max_tokens=1000) #
         self.cwd = Path(__file__).parent.resolve()
 
-        self.meta_data_table = pd.read_json(self.cwd / 'datasets/meta_data_table.json')
+        self.load_meta_table()
+
         if selected_tables:
             self.get_selected_tables(selected_tables)
         self.load_WordContext()
 
         self.prompt_template = None
+        self.meta_data_table = None
 
         self.template = None
         self.examples = None
@@ -75,6 +81,13 @@ class Extractor:
         self.dl = None
 
         # save file name for each table
+
+    def load_meta_table(self):
+        '''
+        self.api_key = api_key
+        self.token = token
+        '''
+        self.meta_data_table = pd.read_json(self.cwd / 'datasets/meta_data_table.json')
 
     def get_selected_tables(self,
                             selected_tables):
@@ -96,11 +109,9 @@ class Extractor:
         load the meta data template
         """
         self.template, self.prefix, self.suffix, self.examples = load_templates('meta_template')
-        self.prompt_template = get_template(self.template,
-                                            self.examples,
+        self.prompt_template = get_template(self.examples,
                                             self.prefix,
-                                            self.suffix,
-                                            ["question"])
+                                            self.suffix)
 
     def key_word_selection(self):
         """
@@ -110,7 +121,7 @@ class Extractor:
         prompt_template = ChatPromptTemplate.from_template(prompt)
         message = prompt_template.format_messages()
 
-        llm = ChatOpenAI(temperature=0, openai_api_key=os.getenv(self.openai_api_key))
+        llm = ChatOpenAI(temperature=0, openai_api_key=os.getenv(self.openai_api_key), model_name="gpt-4-1106-preview")
         response = llm(message)
 
         self.keys_words = ast.literal_eval(response.content)
@@ -121,8 +132,8 @@ class Extractor:
         Results are in selected_table_keys.
         """
 
-        me = MetaEngine()
-        me.load_collection('default_collection') # sheets for all users
+        me = MetaEngine(self.token)
+        me.load_collection('talonic_collection')  # sheets for all users
         me.load_vec()
 
         temp_res = []

@@ -20,7 +20,7 @@ import chromadb
 from chromadb.config import Settings
 
 from sentence_transformers import SentenceTransformer, util
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
 from utils.conf import load_templates, get_template, load_datasets
@@ -39,14 +39,22 @@ logger = logging.getLogger(__name__)
 
 class BaseEmbedding:
 
-    def __init__(self):
+    def __init__(self,
+                 token: str):
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
-        cwd = Path(__file__).parent.resolve()
-        self.chroma_client = chromadb.PersistentClient(path=f"{cwd}/vectorDB/")
-        # chroma_client = chromadb.HttpClient(host='localhost', port=8000)
-        # chroma_client = chromadb.Client()
-        # self.collection = chroma_client.get_or_create_collection(name=collection_name)
+        proxy_host = "https://chroma-proxy.vhi.ai"
+        proxy_port = 443
+
+        # Initialize the chroma client as an HTTP client
+        self.chroma_client = chromadb.HttpClient(
+            host=proxy_host,
+            port=proxy_port,
+            settings=Settings(
+                chroma_client_auth_provider="chromadb.auth.token.TokenAuthClientProvider",
+                chroma_client_auth_credentials=token
+            )
+        )
 
         self.corpus_embeddings = torch.zeros(size=(1, 0))
         self.collection_dict = None
@@ -82,8 +90,8 @@ class BaseEmbedding:
 
 
 class MetaEngine(BaseEmbedding):
-    def __init__(self):
-        super().__init__()
+    def __init__(self, token: str):
+        super().__init__(token)
 
     def find_semantic(self, query: str, n_results=100, threshold=0.3):
         query_embedding = self.embedder.encode(query, convert_to_tensor=True)
@@ -194,11 +202,9 @@ class ContextCluster(BaseEmbedding):
 
     def get_meta_template(self):
         self.template, self.prefix, self.suffix, self.examples = load_templates('cluster_template')
-        self.prompt_template = get_template(self.template,
-                                            self.examples,
+        self.prompt_template = get_template(self.examples,
                                             self.prefix,
-                                            self.suffix,
-                                            ["data"])
+                                            self.suffix)
 
     def predict_topic(self, columns):
         prompt = self.prompt_template.format(data=columns)

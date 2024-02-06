@@ -1,6 +1,8 @@
 import ast
+import json
 import os
 import logging
+import requests
 
 from aenum import extend_enum
 from datetime import datetime
@@ -16,6 +18,8 @@ import yaml
 from pathlib import Path
 
 from pandasai.llm.openai import OpenAI
+from langchain_community.chat_models import ChatOpenAI
+from langchain_core.prompts import FewShotChatMessagePromptTemplate, ChatPromptTemplate
 
 from utils.conf import load_templates, get_template, WordContext, WordException
 from vector_search import MetaEngine
@@ -31,8 +35,12 @@ logger = logging.getLogger(__name__)
 class TableSetter:
 
     def __init__(self,
+                 openai_api_key: str,
                  api_key: str,
-                 dataset_name: str):
+                 token: str,
+                 sheet_id: str,
+                 new_collection=False,
+                 debug=False):
 
         """
         Creates a metadata table.
@@ -40,28 +48,22 @@ class TableSetter:
         :param dataset_name: name of dataset with file extension, ex.: table.csv
         """
 
-        # openai.api_key = api_key
-        self.openai_api_key = api_key
-        os.environ['OPENAI_API_KEY'] = api_key
+        self.api_key = api_key
+        self.token = token
+        self.sheet_id = sheet_id
+        self.openai_api_key = openai_api_key
+        self.new_collection = new_collection
+        os.environ['OPENAI_API_KEY'] = openai_api_key
 
-        self.dataset_name = dataset_name
-        self.original_dir = Path('datasets/original')
-        self.destination_dir = Path('datasets/json_data')
+        self.meta_data_table = pd.DataFrame(
+            columns=['key', 'table_name', 'creation_date', 'last_update', 'context',
+                     'column_names', 'description'])
 
-        meta_data_table_json = Path('datasets/meta_data_table.json')
-        if meta_data_table_json.is_file():
-            self.meta_data_table = pd.read_json('datasets/meta_data_table.json')
-        else:
-            self.meta_data_table = pd.DataFrame(
-                columns=['key', 'path', 'table_name', 'creation_date', 'last_update', 'context',
-                         'column_names', 'scopes', 'description', 'column_type'])
-
-        self.table_path = self.original_dir / dataset_name
-
-        self.llm = OpenAI(api_token=api_key, engine="gpt-3.5-turbo")
+        self.llm = OpenAI(api_token=openai_api_key, engine="gpt-4-1106-preview")
 
         self.key = None
         self.table = None
+        self.dataset_name = None
         self.destination_name = None
         self.column_description = None
 
@@ -69,12 +71,41 @@ class TableSetter:
         self.examples = None
         self.prefix = None
         self.suffix = None
+        self.debug = debug
 
         self.prompt_template = None
 
         self.terminate = False
 
         self.load_WordContext()
+
+    def call_table(self, base_url, sheet_id, headers):
+        response = requests.get(f"{base_url}/sheet/{sheet_id}", headers=headers)
+        if response.status_code == 200:
+            sheet_data = response.json()
+            self.dataset_name = sheet_data['sheetName'] if 'sheetName' in sheet_data else sheet_data['tableName']
+            self.table = pd.DataFrame(sheet_data['sheet'])
+        else:
+            print("Error:", response.status_code, response.text)
+
+    def load_table(self):
+        base_url = 'https://backend.vhi.ai/vhi'
+        headers = {'Authorization': f'Bearer {self.token}',
+                   'x-api-key': f'{self.api_key}'}
+
+        if self.debug:
+            response = requests.get(f"{base_url}/sheet-overview", headers=headers)
+            if response.status_code == 200:
+                all_sheets = response.json()
+                example_sheet_id = all_sheets[0]['sheetId']
+                self.call_table(base_url, example_sheet_id, headers)
+            elif response.status_code == 401:
+                raise ValueError("Invalid token.")
+            else:
+                print("Error:", response.status_code, response.text)
+
+        else:
+            self.call_table(base_url, self.sheet_id, headers)
 
     def update_table(self):
         """
@@ -84,7 +115,7 @@ class TableSetter:
         date_time = datetime.fromtimestamp(datetime.timestamp(datetime.now()))
         last_update = date_time.strftime("%d-%m-%Y, %H:%M:%S")
 
-        self.load_table(self.key)
+        self.load_table()
         self.table.loc[self.table['key'] == self.key, 'last_update'] = last_update
 
     def initialise_table(self):
@@ -123,72 +154,45 @@ class TableSetter:
 
         self.process_entries()
 
-    def load_table(self, key: str) -> None:
-        """
-        Transforms into pandas frame and json file.
-        * issue: if csv has a leading seperator -> creates extra column
-        :param key: identifier
-        """
-        file_extension = self.table_path.suffix
-
-        if file_extension in ['.csv', '.xlsx']:
-            self.table = pd.read_csv(self.table_path) if file_extension == '.csv' else pd.read_excel(self.table_path)
-            self.table.to_json(self.destination_dir / f'{key}.json')
-
-        else:
-            self.table = pd.read_json(self.table_path)
-
     def setup_entry(self) -> None:
         """
         Creates new entry in meta_data_table w/ key, table_name, creation_date, last_update
         """
         key = datetime.timestamp(datetime.now())
-        table_name = self.destination_name if self.destination_name else Path(self.dataset_name).stem
+        table_name = self.destination_name if self.destination_name else self.dataset_name
         date_time = datetime.fromtimestamp(key)
         last_update = creation_date = date_time.strftime("%d-%m-%Y, %H:%M:%S")
-        self.key = str(key).replace('.', '_')
+        self.key = self.sheet_id
 
-        self.load_table(self.key)
+        self.load_table()
         self.meta_data_table.loc[len(self.meta_data_table.index)] = [
-            self.key, str(self.table_path), table_name, creation_date, last_update, *[None] * 3
+            self.key, table_name, creation_date, last_update, *[None] * 3
         ]
 
     def get_summary_template(self):
         self.template, self.prefix, self.suffix, self.examples = load_templates('summary_template')
-        self.prompt_template = get_template(self.template,
-                                            self.examples,
+        self.prompt_template = get_template(self.examples,
                                             self.prefix,
-                                            self.suffix,
-                                            ["column_names", "dataframe_title"])
+                                            self.suffix)
 
     def get_summary(self):
         self.get_summary_template()
-
         key_words: list = self.table.columns.tolist()
-        exceptions = [x.value for x in WordException]
+        chain = self.prompt_template | ChatOpenAI(temperature=0.0,
+                                                  openai_api_key=self.openai_api_key,
+                                                  model_name="gpt-4-1106-preview")
 
-        from langchain.llms import OpenAI
+        answer = chain.invoke({"column_names": key_words,
+                               "dataframe_title": self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'table_name'].values[0]})
 
-        openai = OpenAI(
-            model_name="text-davinci-003",
-            openai_api_key=self.openai_api_key
-        )
-
-        completion = openai(
-            self.prompt_template.format(
-                column_names=key_words,
-                dataframe_title=self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'table_name'].values[
-                    0])
-        )
-
-        match = re.search(r'\bdescription\b', completion)
+        match = re.search(r'\bdescription\b', answer.content)
         try:
             pos = match.span()
         except:
-            logging.debug(f'GPT answer: {completion}')
+            logging.debug(f'GPT answer: {answer}')
             pos = [0, 0]
 
-        description = completion[pos[1] + 4:-1]
+        description = answer.content[pos[1] + 4:-1]
         self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'description'] = description
 
     def columns_info(self) -> None:
@@ -266,11 +270,9 @@ class TableSetter:
 
     def get_context_template(self):
         self.template, self.prefix, self.suffix, self.examples = load_templates('context_template')
-        self.prompt_template = get_template(self.template,
-                                            self.examples,
+        self.prompt_template = get_template(self.examples,
                                             self.prefix,
-                                            self.suffix,
-                                            ["summary", "options"])
+                                            self.suffix)
 
     def get_context(self) -> str:
         """
@@ -280,28 +282,21 @@ class TableSetter:
         self.get_context_template()
 
         description = self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'description']
-        exceptions = [x.value for x in WordException]
         context_lib = [item.value for item in WordContext]
+        exceptions = [x.value for x in WordException]
 
-        from langchain.llms import OpenAI
+        chain = self.prompt_template | ChatOpenAI(temperature=0.0,
+                                                  openai_api_key=self.openai_api_key,
+                                                  model_name="gpt-4-1106-preview")
 
-        openai = OpenAI(
-            model_name="text-davinci-003",
-            openai_api_key=self.openai_api_key
-        )
+        answer = chain.invoke({"summary": description,
+                               "options": context_lib,
+                               "exceptions": exceptions})
 
-        completion = openai(
-            self.prompt_template.format(
-                summary=description,
-                options=context_lib)
-        )
-
-        print(completion)
-
-        match = re.search(r'\bbusiness area\b', completion)
+        match = re.search(r'\bbusiness area\b', answer.content)
         pos = match.span()
 
-        context = completion[pos[1] + 4:-1]
+        context = answer.content[pos[1] + 4:-1]
 
         return context
 
@@ -310,9 +305,6 @@ class TableSetter:
         Sets up a context value for given table.
         """
         context_result = self.get_context()
-        while not self.good_answer(context_result):
-            # TODO: set condition to break - how many loops ?
-            context_result = self.get_context()
 
         regex = r'\b\w+\b'
         words = re.findall(regex, context_result)
@@ -364,8 +356,9 @@ class TableSetter:
         """
         Saves all context attributes into yaml file.
         """
+        script_path = Path(__file__).parent.resolve()
         WordContext_dict = {i.name: i.value for i in WordContext}
-        with open('utils/WordContext.yaml', 'w', ) as f:
+        with open(f'{script_path}/utils/WordContext.yaml', 'w', ) as f:
             yaml.dump(WordContext_dict, f, sort_keys=False)
 
     @staticmethod
@@ -382,12 +375,15 @@ class TableSetter:
                     extend_enum(WordContext, f'{key}', WordContext_dict[key])
 
     def load_into_vector_db(self):
-        me = MetaEngine()
+        me = MetaEngine(self.token)
 
         meta_columns = [list(ast.literal_eval(self.meta_data_table['column_names'][i]).values()) for i in range(len(self.meta_data_table))]
         table_indices = [self.meta_data_table['key'][i] for i in range(len(self.meta_data_table))]
 
-        me.create_new_collection('default_collection')
+        if self.new_collection:
+            me.create_new_collection('talonic_collection')
+        else:
+            me.load_collection('talonic_collection')
         vec_num = 0
         for col, table_index in zip(meta_columns, table_indices):
             me.embed_new_vec(vec_num, table_index, col)
@@ -397,5 +393,12 @@ class TableSetter:
         """
         Saves metadata table as json and excel files.
         """
-        self.meta_data_table.to_json('datasets/meta_data_table.json')
-        self.meta_data_table.to_excel('datasets/meta_data_table.xlsx', index=False)
+        base_url = 'https://backend.vhi.ai/vhi'
+        headers = {'Authorization': f'Bearer {self.token}',
+                   'x-api-key': f'{self.api_key}'}
+        metadata = self.meta_data_table.to_json()
+        dict_meta = ast.literal_eval(metadata)
+        result = requests.patch(f"{base_url}/metadata", headers=headers, json=dict_meta)
+        '''x = result.status_code
+        y = result.json()'''
+

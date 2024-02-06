@@ -1,9 +1,11 @@
 example1:
   summary: 'This table contains retail details and plant descriptions for a plant store.'
   options: '[[''retail planning'', ''advertising budget'', ''marketing campaign'', ''staff expenses'']]'
+  exceptions: '[[''analytics'', ''analysis'', ''column'']]'
   answer: 'business area = "retail planning"'
 
 example2:
   summary: 'This table contains several information about products from Adidas.'
   options: '[[''retail planning'', ''advertising budget'', ''marketing campaign'', ''staff expenses'']]'
+  exceptions: '[[''row'', ''management'', ''column'']]'
   answer: 'business area = "product details"'

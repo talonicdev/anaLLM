@@ -6,8 +6,8 @@ import pandas as pd
 
 from pathlib import Path
 
-from langchain import PromptTemplate
-from langchain import FewShotPromptTemplate
+from langchain.prompts.few_shot import FewShotPromptTemplate
+from langchain_core.prompts import FewShotChatMessagePromptTemplate, ChatPromptTemplate
 
 
 class WordContext(Enum):
@@ -37,7 +37,7 @@ def load_templates(template_name: str) -> tuple:
         prefix = file.read().replace('\n', ' \n ')
 
     with open(script_path / f'{template_name}/suffix.txt', 'r') as file:
-        suffix = file.read().replace('\n', ' \n ')
+        suffix = file.read()
 
     with open(script_path / f'{template_name}/examples.yaml', 'r') as file:
         examples = yaml.safe_load(file)
@@ -46,22 +46,15 @@ def load_templates(template_name: str) -> tuple:
     return template, prefix, suffix, examples
 
 
-def get_template(template, examples, prefix, suffix, input_variables: List[str]) -> FewShotPromptTemplate:
-    example_prompt = PromptTemplate(
-        input_variables=input_variables + ["answer"],
-        template=template
+def get_template(examples, prefix, suffix) -> ChatPromptTemplate:
+    example_prompt = ChatPromptTemplate.from_messages(
+        [('human', suffix), ('ai', '{answer}')]
     )
-
-    prompt_template = FewShotPromptTemplate(
+    few_shot_prompt = FewShotChatMessagePromptTemplate(
         examples=examples,
         example_prompt=example_prompt,
-        prefix=prefix,
-        suffix=suffix,
-        input_variables=input_variables,
-        example_separator="\n\n"
     )
-
-    return prompt_template
+    return ChatPromptTemplate.from_messages([('system', prefix), few_shot_prompt, ('human', suffix)])
 
 
 def load_datasets(subset: int = -1):
