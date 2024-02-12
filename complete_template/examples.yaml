@@ -1,19 +1,23 @@
 example1:
   new_column: 'production cost'
+  question: 'None'
   exists: '[[''product'', ''staff expenses'']]'
   answer: "request = Calculate the 'production cost' for each product. Useful columns = 'product'"
 
 example2:
   new_column: 'satisfaction'
-  exists: '[[''customer'', ''area zip code'']]'
-  answer: "request = Calculate the customer 'satisfaction'. Useful columns = 'customer'"
+  question: 'Consider the area zip code.'
+  exists: '[[''customer'', ''area zip code'', ''age'']]'
+  answer: "request = Calculate the customer 'satisfaction' based on 'area zip code'. Useful columns = 'customer'"
 
 example3:
   new_column: 'sales volume'
+  question: 'None'
   exists: '[[''product'', ''production cost'', ''staff expenses'', ''other expenses'', ''material'', ''revenue'']]'
-  answer: "request = Calculate the s'ales volume' for each product based on 'production cost', 'staff expenses', 'other expenses' and 'revenue'. Useful columns = 'production cost', 'staff expenses', 'other expenses' and 'revenue'"
+  answer: "request = Calculate the 'sales volume' for each product based on 'production cost', 'staff expenses', 'other expenses' and 'revenue'. Useful columns = 'production cost', 'staff expenses', 'other expenses' and 'revenue'"
 
 example4:
   new_column: 'our sales volume'
+  question: 'None'
   exists: '[[''product'', ''reference sales volume'']]'
   answer: "request = Calculate 'our sales volume' for each 'product'. Useful columns = 'product', 'sales volume'"

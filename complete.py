@@ -39,6 +39,7 @@ class CompleteTable:
         self.api_key = api_key
         self.token = token
         self.debug = debug
+        self.users_prompt = users_prompt
 
         self.template = None
         self.examples = None
@@ -55,8 +56,7 @@ class CompleteTable:
             sheet_data = response.json()
             self.table = pd.DataFrame(sheet_data['sheet'])
             self.table.columns = self.table.iloc[0].to_list()
-            self.table = self.table.iloc[:, 1:]
-            self.table = self.table[1:]
+
         else:
             print("Error:", response.status_code, response.text)
 
@@ -65,7 +65,7 @@ class CompleteTable:
             self.table = pd.read_csv(StringIO(self.content))
             self.table = self.table[1:]
         else:
-            base_url = 'https://backend.vhi.ai/vhi'
+            base_url = 'https://backend.vhi.ai/service-api'
             headers = {'Authorization': f'Bearer {token}',
                        'x-api-key': f'{api_key}'}
 
@@ -127,7 +127,6 @@ class CompleteTable:
         """
 
         self.get_complete_template()
-
         exists_cols = copy.deepcopy(self.table.columns.tolist())
         for i in range(len(original_cols)):
             idx = exists_cols.index(original_cols[i])
@@ -138,6 +137,7 @@ class CompleteTable:
                                                   model_name="gpt-4-1106-preview")
 
         answer = chain.invoke({"new_column": empty_cols,
+                               "question": self.users_prompt,
                                "exists": exists_cols})
 
         match = re.search(r'\bUseful columns\b', answer.content)

@@ -30,15 +30,27 @@ def test_complete_table():
     # 4. enter window.sessionStorage.getItem('accessToken')
     # 5. copy token
 
-    token = "eyJraWQiOiJQMDhQNXF1MWdQVXhxVkhQODlIR3l1c0JiMWhrcFJJdmhMRENpcGk0N1kwPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJiNDk3ZTcxNS0wMzczLTRmNDgtYTUzMS05NmExZDZmZThhZjMiLCJldmVudF9pZCI6IjU5NzdjN2I5LTM2ZGItNDc5ZS04OGRiLWRmMzNiZWY1MzI1NyIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3MDY4ODE5MTUsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC5ldS1ub3J0aC0xLmFtYXpvbmF3cy5jb21cL2V1LW5vcnRoLTFfYldqenF6amttIiwiZXhwIjoxNzA2ODg1NTE1LCJpYXQiOjE3MDY4ODE5MTUsImp0aSI6Ijc2MmVlYTRmLTlmMjEtNDNlMC05MjQ0LTFiZTQzNDM0ZTgwOCIsImNsaWVudF9pZCI6IjJub2JhODliOXJibjJubDBxZ25ibm9rMGJxIiwidXNlcm5hbWUiOiJiNDk3ZTcxNS0wMzczLTRmNDgtYTUzMS05NmExZDZmZThhZjMifQ.X1Hbcv5EL_MKhBmqxl76ApjEegx8lzmW2m3t07N0lhoLZ3jfIJq3SDuoVDRlrCzvQWUkREh6-eplXeogQafhfEF-dXzLY_PwBWJI00IpHIqqudZaF6QJkKpndLJPnLtbUQPoGEDlKryy-ktyAWYmMZcfsSgTpR41v8xJdv2lK7z_sUeZlYcbnyhfA7DSdckwRpOxY3f-Kwr5OPTbdWbh2jo3Mz-CRqVSZIWnQrkxerhIDJ2SbPyFw2lHUIr-mZ8Xj1X2iV64hl8VVQFILWlNREU8pvysPc2DQk51MCOOHu-bwC-SiuTpslzCEK0LDRUcSJrT1jXCS53BkpUqb1H5_g"
-    sheet_id = "eb2eb73d-1d52-45ea-858c-5ba54972f937"
+    '''api_key = os.environ['API_KEY']
+    token = "b497e715-0373-4f48-a531-96a1d6fe8af3"
+    base_url = 'https://backend.vhi.ai/service-api'
+    headers = {'Authorization': f'Bearer {token}',
+               'x-api-key': f'{api_key}'}
+
+    response = requests.get(f"{base_url}/sheet-overview", headers=headers)
+    if response.status_code == 200:
+        all_sheets = response.json()'''
+
+    token = "b497e715-0373-4f48-a531-96a1d6fe8af3"
+    sheet_id = "333d2d8e-99e9-4398-ac0b-f97b1b68cf95"
+    users_prompt = "what are the preferred payments only for male?"
 
     ct = CompleteTable(openai_api_key=os.environ['KEY'],
                        table_path='./rating_table.xlsx',
                        token=token,
+                       users_prompt=users_prompt,
                        api_key=os.environ['API_KEY'],
                        sheet_id=sheet_id,
-                       debug=True)
+                       debug=False)
     e_cols, o_cols = ct.get_empty_cols()
     c_request, useful, exists_cols, empty_cols = ct.get_table_question(e_cols, o_cols)
     ct.create_table(c_request, useful, exists_cols, empty_cols)
@@ -109,4 +121,4 @@ def test_ask():
 
 if __name__ == "__main__":
     # test_table_setter()
-    test_ask()
+    test_complete_table()

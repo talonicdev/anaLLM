@@ -15012,3 +15012,58 @@ result = {'type': 'dataframe', 'value': sales_summary}
                 
 2024-02-12:21:31:05,687 DEBUG    [_trace.py:45] close.started
 2024-02-12:21:31:05,688 DEBUG    [_trace.py:45] close.complete
+2024-02-12:22:16:23,620 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:16:24,478 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet-overview HTTP/1.1" 200 2422
+2024-02-12:22:17:47,710 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:17:47,807 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /vhi/sheet-overview HTTP/1.1" 404 81
+2024-02-12:22:18:25,299 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:18:25,405 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /vhi/sheet-overview HTTP/1.1" 404 81
+2024-02-12:22:18:55,091 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:18:55,185 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /vhi/sheet/b497e715-0373-4f48-a531-96a1d6fe8af3 HTTP/1.1" 404 109
+2024-02-12:22:20:11,011 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:20:11,873 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet-overview HTTP/1.1" 200 2422
+2024-02-12:22:21:05,471 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:21:05,559 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /vhi/sheet/333d2d8e-99e9-4398-ac0b-f97b1b68cf95 HTTP/1.1" 404 109
+2024-02-12:22:21:31,621 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:21:31,703 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /vhi/sheet/333d2d8e-99e9-4398-ac0b-f97b1b68cf95 HTTP/1.1" 404 109
+2024-02-12:22:22:03,341 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:22:04,195 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet-overview HTTP/1.1" 200 2422
+2024-02-12:22:22:51,526 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:22:51,628 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /vhi/sheet/333d2d8e-99e9-4398-ac0b-f97b1b68cf95 HTTP/1.1" 404 109
+2024-02-12:22:24:21,155 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:24:21,234 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet/333d2d8e-99e9-4398-ac0b-f97b1b68cf95 HTTP/1.1" 200 540
+2024-02-12:22:24:44,472 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:24:44,580 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet/333d2d8e-99e9-4398-ac0b-f97b1b68cf95 HTTP/1.1" 200 540
+2024-02-12:22:25:31,385 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:25:31,468 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet/333d2d8e-99e9-4398-ac0b-f97b1b68cf95 HTTP/1.1" 200 540
+2024-02-12:22:25:32,592 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-12:22:25:32,593 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-12:22:25:32,601 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-12:22:25:32,601 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-12:22:25:55,970 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:25:56,050 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet/333d2d8e-99e9-4398-ac0b-f97b1b68cf95 HTTP/1.1" 200 540
+2024-02-12:22:29:07,803 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:22:29:07,894 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet/333d2d8e-99e9-4398-ac0b-f97b1b68cf95 HTTP/1.1" 200 540
+2024-02-12:22:29:21,514 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-12:22:29:21,516 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-12:22:29:21,526 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-12:22:29:21,527 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-12:22:29:25,155 DEBUG    [_base_client.py:439] Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': 'Background Info: A dataframe with several columns is given to us. One of these columns is empty, which is called \'new_column\'. We need to fill this column with values according to the information obtained by some of the other columns. \'exists\' is a list with the column names that are already filled with values. \'question\' is an additional question from us. If \'question\' is \'None\' we don\'t have an additional question. \n Tasks: 1. Determine which columns might be useful to fill the empty column, \'new_column\'. Define the task based on the name of the columns and \'question\'. \n Rules: 1. Return your result as "request = " and then your result. 2. Start your answer with \'Calculate ...\'. 3. List the columns that are useful to fill the empty column. 4.Do NOT add any explanation to you answer.'}, {'role': 'user', 'content': "new_column: production cost\nquestion: None\nexists: [['product', 'staff expenses']]\nanswer:"}, {'role': 'assistant', 'content': "request = Calculate the 'production cost' for each product. Useful columns = 'product'"}, {'role': 'user', 'content': "new_column: satisfaction\nquestion: Consider the area zip code.\nexists: [['customer', 'area zip code', 'age']]\nanswer:"}, {'role': 'assistant', 'content': "request = Calculate the customer 'satisfaction' based on 'area zip code'. Useful columns = 'customer'"}, {'role': 'user', 'content': "new_column: sales volume\nquestion: None\nexists: [['product', 'production cost', 'staff expenses', 'other expenses', 'material', 'revenue']]\nanswer:"}, {'role': 'assistant', 'content': "request = Calculate the 'sales volume' for each product based on 'production cost', 'staff expenses', 'other expenses' and 'revenue'. Useful columns = 'production cost', 'staff expenses', 'other expenses' and 'revenue'"}, {'role': 'user', 'content': "new_column: our sales volume\nquestion: None\nexists: [['product', 'reference sales volume']]\nanswer:"}, {'role': 'assistant', 'content': "request = Calculate 'our sales volume' for each 'product'. Useful columns = 'product', 'sales volume'"}, {'role': 'user', 'content': "new_column: []\nquestion: what are the preferred payments only for male?\nexists: ['Kentucky', '']\nanswer:"}], 'model': 'gpt-4-1106-preview', 'n': 1, 'stream': False, 'temperature': 0.6}}
+2024-02-12:22:29:25,191 DEBUG    [_trace.py:45] connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=None socket_options=None
+2024-02-12:22:29:25,226 DEBUG    [_trace.py:45] connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x16a8f8790>
+2024-02-12:22:29:25,227 DEBUG    [_trace.py:45] start_tls.started ssl_context=<ssl.SSLContext object at 0x16a8b8e60> server_hostname='api.openai.com' timeout=None
+2024-02-12:22:29:25,255 DEBUG    [_trace.py:45] start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x16ae8a450>
+2024-02-12:22:29:25,255 DEBUG    [_trace.py:45] send_request_headers.started request=<Request [b'POST']>
+2024-02-12:22:29:25,256 DEBUG    [_trace.py:45] send_request_headers.complete
+2024-02-12:22:29:25,256 DEBUG    [_trace.py:45] send_request_body.started request=<Request [b'POST']>
+2024-02-12:22:29:25,256 DEBUG    [_trace.py:45] send_request_body.complete
+2024-02-12:22:29:25,256 DEBUG    [_trace.py:45] receive_response_headers.started request=<Request [b'POST']>
+2024-02-12:22:29:26,914 DEBUG    [_trace.py:45] receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Mon, 12 Feb 2024 21:29:26 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'access-control-allow-origin', b'*'), (b'Cache-Control', b'no-cache, must-revalidate'), (b'openai-model', b'gpt-4-1106-preview'), (b'openai-organization', b'talonic'), (b'openai-processing-ms', b'1438'), (b'openai-version', b'2020-10-01'), (b'strict-transport-security', b'max-age=15724800; includeSubDomains'), (b'x-ratelimit-limit-requests', b'5000'), (b'x-ratelimit-limit-tokens', b'5000000'), (b'x-ratelimit-remaining-requests', b'4999'), (b'x-ratelimit-remaining-tokens', b'4999509'), (b'x-ratelimit-reset-requests', b'12ms'), (b'x-ratelimit-reset-tokens', b'8.484s'), (b'x-request-id', b'req_a62ad4f8bd56f2989a3e224570d6f5a9'), (b'CF-Cache-Status', b'DYNAMIC'), (b'Set-Cookie', b'__cf_bm=6geKNBuBAjNJUDtwHAUcSYLts28AUU9WX_EA1pIR48c-1707773366-1-AcQASXTGMDxkgvTou4BQv8CcCQmu/SMdhKkMon6r1YUALrjmrYIrpjzHyYKdszHtqMbIDgSLN4nR6etpibgPyws=; path=/; expires=Mon, 12-Feb-24 21:59:26 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Set-Cookie', b'_cfuvid=6cazTFKiELdEi0yikZkN_Do99WuJxIc84P4GXLIFyO0-1707773366948-0-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Server', b'cloudflare'), (b'CF-RAY', b'8547ed4d3ee5bf2b-WAW'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+2024-02-12:22:29:26,917 INFO     [_client.py:1013] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-02-12:22:29:26,917 DEBUG    [_trace.py:45] receive_response_body.started request=<Request [b'POST']>
+2024-02-12:22:29:26,918 DEBUG    [_trace.py:45] receive_response_body.complete
+2024-02-12:22:29:26,918 DEBUG    [_trace.py:45] response_closed.started
+2024-02-12:22:29:26,918 DEBUG    [_trace.py:45] response_closed.complete
+2024-02-12:22:29:26,919 DEBUG    [_base_client.py:933] HTTP Request: POST https://api.openai.com/v1/chat/completions "200 OK"
+2024-02-12:22:30:10,871 DEBUG    [_trace.py:45] close.started
+2024-02-12:22:30:10,873 DEBUG    [_trace.py:45] close.complete
