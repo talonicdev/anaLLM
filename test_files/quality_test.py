@@ -45,8 +45,8 @@ def test_complete_table():
 
 
 def test_table_setter():
-    token = "eyJraWQiOiJQMDhQNXF1MWdQVXhxVkhQODlIR3l1c0JiMWhrcFJJdmhMRENpcGk0N1kwPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJiNDk3ZTcxNS0wMzczLTRmNDgtYTUzMS05NmExZDZmZThhZjMiLCJldmVudF9pZCI6ImNjNTExODdmLWJjYTEtNDhlNS05Mzc3LTdjYWI5YmVkODUzOCIsInRva2VuX3VzZSI6ImFjY2VzcyIsInNjb3BlIjoiYXdzLmNvZ25pdG8uc2lnbmluLnVzZXIuYWRtaW4iLCJhdXRoX3RpbWUiOjE3MDc3NDUxMjMsImlzcyI6Imh0dHBzOlwvXC9jb2duaXRvLWlkcC5ldS1ub3J0aC0xLmFtYXpvbmF3cy5jb21cL2V1LW5vcnRoLTFfYldqenF6amttIiwiZXhwIjoxNzA3NzY5OTgyLCJpYXQiOjE3MDc3NjYzODIsImp0aSI6IjM4NjJkNGU3LTFjYTctNDY5Ny1hMTU2LTZiNmZjZDY0YTBmNCIsImNsaWVudF9pZCI6IjJub2JhODliOXJibjJubDBxZ25ibm9rMGJxIiwidXNlcm5hbWUiOiJiNDk3ZTcxNS0wMzczLTRmNDgtYTUzMS05NmExZDZmZThhZjMifQ.PpYtUUvQI3FyuCgFzE3cK0bn23HM6bO1vRzlsYdESjqSTc4RyEebAaKeLtX-TmJ3eZTe9XJExU68dDX1l2xiw_t2GupOUvT0jmIxCv_kECNNH1qEB_W4E0jtl2D1jD4k0d0feJvgOrIBzDSKrPJeRSJQQsPbJqn1zuWywwMEloSSmYfseibzDDwjJzhZzXeC3QVfdAA4COFWnplZTbE8ELL2t9fcvbG0bc2JBtxSlJ93BLfXZuhnElveRVxdfKb-XeD2akGWjSJkfNUzFQu33sWoPwp4NrTlqOI3RqverZp_sWnEySkNkquuenDvpoXIDHSublc59fFHb3Qazu-PrA"
     api_key = os.environ['API_KEY']
+    token = "b497e715-0373-4f48-a531-96a1d6fe8af3"
     base_url = 'https://backend.vhi.ai/service-api'
     headers = {'Authorization': f'Bearer {token}',
                'x-api-key': f'{api_key}'}
@@ -55,7 +55,7 @@ def test_table_setter():
     if response.status_code == 200:
         all_sheets = response.json()
         for i in range(len(all_sheets)):
-            sheet_id = all_sheets[0]['sheetId']
+            sheet_id = all_sheets[i]['sheetId']
             # sheet_id = "eb2eb73d-1d52-45ea-858c-5ba54972f937"
             setter = TableSetter(os.environ['KEY'],
                                  api_key=api_key,
@@ -108,5 +108,5 @@ def test_ask():
 
 
 if __name__ == "__main__":
-    test_table_setter()
-    # test_ask()
+    # test_table_setter()
+    test_ask()

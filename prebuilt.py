@@ -108,7 +108,7 @@ class Extractor:
         meta = meta.decode('utf-8')
         import json
         meta_dict = json.loads(meta)
-        # del meta_dict['userId'] used as sheet_id
+        del meta_dict['userId']
         del meta_dict['column_type']
         del meta_dict['scopes']
         self.meta_data_table = pd.DataFrame(meta_dict)
@@ -185,8 +185,7 @@ class Extractor:
         pd.set_option('display.max_columns', None)
 
         for key in self.selected_table_keys:
-            sheet_id = self.meta_data_table.loc[self.meta_data_table['key'] == key, 'userId']
-            table = self.call_table(sheet_id)
+            table = self.call_table(key)
             self.selected_tables.append(table)
 
     def run_request(self):
@@ -216,6 +215,8 @@ class Extractor:
 
             # add explain
             sys.stdout.write(f"EXPLAIN: string\n")
+            sys.stdout.write(explanation)
+            sys.stdout.write("\n")
 
         elif isinstance(self.response, dict):
             # TODO: need an example with dict output

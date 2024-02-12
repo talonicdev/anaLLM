@@ -56,7 +56,7 @@ class TableSetter:
         os.environ['OPENAI_API_KEY'] = openai_api_key
 
         self.meta_data_table = pd.DataFrame(
-            columns=['userId', 'key', 'table_name', 'creation_date', 'last_update', 'context',
+            columns=['key', 'table_name', 'creation_date', 'last_update', 'context',
                      'column_names', 'description'])
 
         self.llm = OpenAI(api_token=openai_api_key, engine="gpt-4-1106-preview")
@@ -166,7 +166,7 @@ class TableSetter:
 
         self.load_table()
         self.meta_data_table.loc[len(self.meta_data_table.index)] = [
-            self.sheet_id, self.key, table_name, creation_date, last_update, *[None] * 3
+            self.key, table_name, creation_date, last_update, *[None] * 3
         ]
 
     def get_summary_template(self):
@@ -399,6 +399,7 @@ class TableSetter:
         metadata = self.meta_data_table.to_json()
         dict_meta = ast.literal_eval(metadata)
         result = requests.patch(f"{base_url}/metadata", headers=headers, json=dict_meta)
+        print(f'saved table: {result}')
         '''x = result.status_code
         y = result.json()'''
 
