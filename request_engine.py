@@ -1,3 +1,4 @@
+import argparse
 import ast
 import json
 import os
@@ -39,7 +40,7 @@ class TableSetter:
                  api_key: str,
                  token: str,
                  sheet_id: str,
-                 new_collection=False,
+                 new_collection=True,
                  debug=False):
 
         """
@@ -403,3 +404,14 @@ class TableSetter:
         '''x = result.status_code
         y = result.json()'''
 
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='')
+    parser.add_argument('-o', '--openai_api_key', help='OPENAI Key', required=True)
+    parser.add_argument('-a', '--api_key', help='Backend Key', required=True)
+    parser.add_argument('-token', '--token', required=True)
+    parser.add_argument('-sheet', '--sheet_id', required=True)
+    args = parser.parse_args()
+
+    setter = TableSetter(**vars(args))
+    setter.run()

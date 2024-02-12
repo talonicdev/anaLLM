@@ -338,6 +338,9 @@ class Extractor:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('-o', '--openai_api_key', help='OPENAI Key', required=True)
+    parser.add_argument('-a', '--api_key', help='Backend Key', required=True)
+    parser.add_argument('-token', '--token', required=True)
+    parser.add_argument('-sheet', '--sheet_id', required=True)
     parser.add_argument('-r', '--customer_request', help='Task for AI.', required=True, nargs='+', dest='customer_request')
     parser.add_argument('--selected_tables', help='A list of table names that should be selected.')
     args = parser.parse_args()
