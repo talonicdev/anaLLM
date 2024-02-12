@@ -221,6 +221,10 @@ class CompleteTable:
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='')
     parser.add_argument('-o', '--openai_api_key', help='OPENAI Key', required=True)
+    parser.add_argument('-a', '--api_key', help='Backend Key', required=True)
+    parser.add_argument('-token', '--token')
+    parser.add_argument('-sheet', '--sheet_id')
+    parser.add_argument('-query', '--users_prompt')
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument('-p', '--table_path', help='Path of the table to be filled.')
     group.add_argument('-c', '--content', help='Table content as buffer / str to be filled.')
