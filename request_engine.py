@@ -56,7 +56,7 @@ class TableSetter:
         os.environ['OPENAI_API_KEY'] = openai_api_key
 
         self.meta_data_table = pd.DataFrame(
-            columns=['key', 'table_name', 'creation_date', 'last_update', 'context',
+            columns=['userId', 'key', 'table_name', 'creation_date', 'last_update', 'context',
                      'column_names', 'description'])
 
         self.llm = OpenAI(api_token=openai_api_key, engine="gpt-4-1106-preview")
@@ -89,7 +89,7 @@ class TableSetter:
             print("Error:", response.status_code, response.text)
 
     def load_table(self):
-        base_url = 'https://backend.vhi.ai/vhi'
+        base_url = 'https://backend.vhi.ai/service-api'
         headers = {'Authorization': f'Bearer {self.token}',
                    'x-api-key': f'{self.api_key}'}
 
@@ -166,7 +166,7 @@ class TableSetter:
 
         self.load_table()
         self.meta_data_table.loc[len(self.meta_data_table.index)] = [
-            self.key, table_name, creation_date, last_update, *[None] * 3
+            self.sheet_id, self.key, table_name, creation_date, last_update, *[None] * 3
         ]
 
     def get_summary_template(self):
@@ -393,7 +393,7 @@ class TableSetter:
         """
         Saves metadata table as json and excel files.
         """
-        base_url = 'https://backend.vhi.ai/vhi'
+        base_url = 'https://backend.vhi.ai/service-api'
         headers = {'Authorization': f'Bearer {self.token}',
                    'x-api-key': f'{self.api_key}'}
         metadata = self.meta_data_table.to_json()

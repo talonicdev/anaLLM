@@ -11055,3 +11055,126 @@ For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/St
 2024-02-06:17:50:52,025 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "PUT /vhi/metadata HTTP/1.1" 200 4
 2024-02-06:17:50:52,514 DEBUG    [_trace.py:45] close.started
 2024-02-06:17:50:52,515 DEBUG    [_trace.py:45] close.complete
+2024-02-12:14:53:47,439 INFO     [quality_test.py:62] TESTING Quality of Software:
+2024-02-12:14:54:52,812 INFO     [quality_test.py:62] TESTING Quality of Software:
+2024-02-12:14:55:21,667 INFO     [quality_test.py:62] TESTING Quality of Software:
+2024-02-12:14:55:25,190 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-12:14:55:25,196 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-12:14:55:52,652 INFO     [quality_test.py:62] TESTING Quality of Software:
+2024-02-12:14:55:55,540 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-12:14:55:55,544 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-12:14:55:59,197 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:14:55:59,315 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/metadata HTTP/1.1" 200 446
+2024-02-12:15:30:48,752 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:15:30:48,866 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet-overview HTTP/1.1" 200 753
+2024-02-12:15:30:48,875 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-12:15:30:48,875 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-12:15:30:48,884 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:15:30:48,968 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet/eb2eb73d-1d52-45ea-858c-5ba54972f937 HTTP/1.1" 200 1723
+2024-02-12:15:30:48,977 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-12:15:30:48,977 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-12:15:30:48,987 DEBUG    [_base_client.py:439] Request options: {'method': 'post', 'url': '/completions', 'files': None, 'json_data': {'model': 'gpt-3.5-turbo-instruct', 'prompt': "Describe every child list in this list: [['United States', 'China', 'Japan', 'Germany', 'India', 'United Kingdom', 'France', 'Brazil', 'Italy', 'Canada'], ['$25.463 trillion', '$17.963 trillion', '$4.231 trillion', '$3.806 trillion', '$3.202 trillion', '$2.914 trillion', '$2.778 trillion', '$2.463 trillion', '$2.072 trillion', '$1.883 trillion'], ['338,289,857', '1,425,887,337', '123,951,692', '83,149,300', '1,366,417,754', '67,886,004', '65,273,511', '211,049,527', '60,461,826', '37,742,154'], ['$75,269', '$12,598', '$34,135', '$45,790', '$2,341', '$42,944', '$42,576', '$11,662', '$34,272', '$49,918'], ['2023', '2023', '2023', '2023', '2023', '2023', '2023', '2023', '2023', '2023']] in one or two words.", 'max_tokens': 150, 'temperature': 0.6}}
+2024-02-12:15:30:49,023 DEBUG    [_trace.py:45] connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=5.0 socket_options=None
+2024-02-12:15:30:49,071 DEBUG    [_trace.py:45] connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x2893f0910>
+2024-02-12:15:30:49,071 DEBUG    [_trace.py:45] start_tls.started ssl_context=<ssl.SSLContext object at 0x2893c8680> server_hostname='api.openai.com' timeout=5.0
+2024-02-12:15:30:49,096 DEBUG    [_trace.py:45] start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x2893f0b10>
+2024-02-12:15:30:49,096 DEBUG    [_trace.py:45] send_request_headers.started request=<Request [b'POST']>
+2024-02-12:15:30:49,097 DEBUG    [_trace.py:45] send_request_headers.complete
+2024-02-12:15:30:49,097 DEBUG    [_trace.py:45] send_request_body.started request=<Request [b'POST']>
+2024-02-12:15:30:49,097 DEBUG    [_trace.py:45] send_request_body.complete
+2024-02-12:15:30:49,097 DEBUG    [_trace.py:45] receive_response_headers.started request=<Request [b'POST']>
+2024-02-12:15:30:49,425 DEBUG    [_trace.py:45] receive_response_headers.complete return_value=(b'HTTP/1.1', 401, b'Unauthorized', [(b'Date', b'Mon, 12 Feb 2024 14:30:49 GMT'), (b'Content-Type', b'application/json'), (b'Content-Length', b'196'), (b'Connection', b'keep-alive'), (b'access-control-allow-origin', b'*'), (b'openai-organization', b'talonic'), (b'openai-processing-ms', b'9'), (b'openai-version', b'2020-10-01'), (b'strict-transport-security', b'max-age=15724800; includeSubDomains'), (b'www-authenticate', b'Basic realm="OpenAI API"'), (b'x-ratelimit-limit-requests', b'3000'), (b'x-ratelimit-limit-tokens', b'250000'), (b'x-ratelimit-remaining-requests', b'2999'), (b'x-ratelimit-remaining-tokens', b'249672'), (b'x-ratelimit-reset-requests', b'20ms'), (b'x-ratelimit-reset-tokens', b'78ms'), (b'x-request-id', b'req_f94f6f3ae2643149e0042da4bca97a4e'), (b'CF-Cache-Status', b'DYNAMIC'), (b'Set-Cookie', b'__cf_bm=cguDAp_NLIqhigxcZufr3FZe45z0pB.hWEZvjYbSNVI-1707748249-1-AZ+5fF6GuvrNMLwslW88AiDBIuqTvkSL8P75mL2hwcfewoF1y2lM02O6gG76JmPqn8H5sThtr//VXz/xfayLc2c=; path=/; expires=Mon, 12-Feb-24 15:00:49 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Set-Cookie', b'_cfuvid=ZTQrOzsuTDJqUyu.V77mih3Dk8.pdXbcrdgb3J.yDig-1707748249428-0-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Server', b'cloudflare'), (b'CF-RAY', b'8545881d0df40063-WAW'), (b'alt-svc', b'h3=":443"; ma=86400')])
+2024-02-12:15:30:49,430 INFO     [_client.py:1013] HTTP Request: POST https://api.openai.com/v1/completions "HTTP/1.1 401 Unauthorized"
+2024-02-12:15:30:49,430 DEBUG    [_trace.py:45] receive_response_body.started request=<Request [b'POST']>
+2024-02-12:15:30:49,431 DEBUG    [_trace.py:45] receive_response_body.complete
+2024-02-12:15:30:49,431 DEBUG    [_trace.py:45] response_closed.started
+2024-02-12:15:30:49,431 DEBUG    [_trace.py:45] response_closed.complete
+2024-02-12:15:30:49,431 DEBUG    [_base_client.py:933] HTTP Request: POST https://api.openai.com/v1/completions "401 Unauthorized"
+2024-02-12:15:30:49,432 DEBUG    [_base_client.py:940] Encountered httpx.HTTPStatusError
+Traceback (most recent call last):
+  File "/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/openai/_base_client.py", line 938, in _request
+    response.raise_for_status()
+  File "/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/httpx/_models.py", line 758, in raise_for_status
+    raise HTTPStatusError(message, request=request, response=self)
+httpx.HTTPStatusError: Client error '401 Unauthorized' for url 'https://api.openai.com/v1/completions'
+For more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
+2024-02-12:15:30:49,438 DEBUG    [_base_client.py:684] Not retrying
+2024-02-12:15:30:49,438 DEBUG    [_base_client.py:958] Re-raising status error
+2024-02-12:15:31:58,183 DEBUG    [_trace.py:45] close.started
+2024-02-12:15:31:58,183 DEBUG    [_trace.py:45] close.complete
+2024-02-12:15:32:19,830 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:15:32:19,923 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet-overview HTTP/1.1" 500 103
+2024-02-12:15:32:50,024 INFO     [quality_test.py:72] TESTING Quality of Software:
+2024-02-12:15:32:52,078 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-12:15:32:52,079 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-12:15:32:56,988 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:15:32:57,075 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/metadata HTTP/1.1" 200 446
+2024-02-12:15:32:57,106 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-12:15:32:57,107 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-12:15:32:57,114 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-12:15:32:57,114 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-12:15:32:57,153 DEBUG    [_base_client.py:439] Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'user', 'content': "System: Background Info: 'Request Item List' is the request. We have several dataframes that help us to answer 'Request Item List'. Return useful column names to answer 'Request Item List'. We will query our dataframes via those column names. \n Rules: 1. Return a list with your results. 2. Do NOT add any explanation.\nHuman: Request Item List: How much profit were made in each country in our company?\nAI: ['revenue', 'country']\nHuman: Request Item List: Summarize the sales of Apparel products per city, but exclude all sales that had an operating margin of less than 30%."}], 'model': 'gpt-4-1106-preview', 'n': 1, 'stream': False, 'temperature': 0.0}}
+2024-02-12:15:32:57,186 DEBUG    [_trace.py:45] connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=None socket_options=None
+2024-02-12:15:33:00,335 DEBUG    [_trace.py:45] connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x291c31410>
+2024-02-12:15:33:00,336 DEBUG    [_trace.py:45] start_tls.started ssl_context=<ssl.SSLContext object at 0x2925d0b00> server_hostname='api.openai.com' timeout=None
+2024-02-12:15:33:00,363 DEBUG    [_trace.py:45] start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x291c725d0>
+2024-02-12:15:33:00,364 DEBUG    [_trace.py:45] send_request_headers.started request=<Request [b'POST']>
+2024-02-12:15:33:00,365 DEBUG    [_trace.py:45] send_request_headers.complete
+2024-02-12:15:33:00,365 DEBUG    [_trace.py:45] send_request_body.started request=<Request [b'POST']>
+2024-02-12:15:33:00,365 DEBUG    [_trace.py:45] send_request_body.complete
+2024-02-12:15:33:00,365 DEBUG    [_trace.py:45] receive_response_headers.started request=<Request [b'POST']>
+2024-02-12:15:33:01,956 DEBUG    [_trace.py:45] receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Mon, 12 Feb 2024 14:33:01 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'access-control-allow-origin', b'*'), (b'Cache-Control', b'no-cache, must-revalidate'), (b'openai-model', b'gpt-4-1106-preview'), (b'openai-organization', b'talonic'), (b'openai-processing-ms', b'1215'), (b'openai-version', b'2020-10-01'), (b'strict-transport-security', b'max-age=15724800; includeSubDomains'), (b'x-ratelimit-limit-requests', b'5000'), (b'x-ratelimit-limit-tokens', b'5000000'), (b'x-ratelimit-remaining-requests', b'4999'), (b'x-ratelimit-remaining-tokens', b'4999838'), (b'x-ratelimit-reset-requests', b'12ms'), (b'x-ratelimit-reset-tokens', b'2.782s'), (b'x-request-id', b'req_9123bead161808c871b561e51fea0ac0'), (b'CF-Cache-Status', b'DYNAMIC'), (b'Set-Cookie', b'__cf_bm=AcqEt00Xb6eldljcikmEWjG.nrzXL03ephGGC3ZtMiI-1707748381-1-AfWXQKpgIh793v+3FKhnlA3a+7imAdlY3NhiVzmhrH47HV5ukNewKtdRiQzfThtYjQH1Tzb+mwNA6Ff3NjdIoOU=; path=/; expires=Mon, 12-Feb-24 15:03:01 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Set-Cookie', b'_cfuvid=MtmXakUE9bvAFXNRv9yyT_jMUBx772dSRIat6tzUc2U-1707748381958-0-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Server', b'cloudflare'), (b'CF-RAY', b'85458b517ef835ac-WAW'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+2024-02-12:15:33:01,961 INFO     [_client.py:1013] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-02-12:15:33:01,962 DEBUG    [_trace.py:45] receive_response_body.started request=<Request [b'POST']>
+2024-02-12:15:33:01,962 DEBUG    [_trace.py:45] receive_response_body.complete
+2024-02-12:15:33:01,963 DEBUG    [_trace.py:45] response_closed.started
+2024-02-12:15:33:01,963 DEBUG    [_trace.py:45] response_closed.complete
+2024-02-12:15:33:01,963 DEBUG    [_base_client.py:933] HTTP Request: POST https://api.openai.com/v1/chat/completions "200 OK"
+2024-02-12:15:33:01,969 INFO     [SentenceTransformer.py:66] Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2024-02-12:15:33:02,008 DEBUG    [_trace.py:45] close.started
+2024-02-12:15:33:02,008 DEBUG    [_trace.py:45] close.complete
+2024-02-12:15:33:02,340 INFO     [SentenceTransformer.py:105] Use pytorch device: cpu
+2024-02-12:15:33:02,347 INFO     [posthog.py:20] Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2024-02-12:15:33:02,350 DEBUG    [registry.py:56] Registering provider: htpasswd_file
+2024-02-12:15:33:02,416 DEBUG    [fastapi.py:80] Skipping port as the user is passing a full URL
+2024-02-12:15:33:02,419 DEBUG    [registry.py:56] Registering provider: local_authz_config
+2024-02-12:15:33:02,420 DEBUG    [registry.py:56] Registering provider: simple_rbac
+2024-02-12:15:33:02,423 DEBUG    [registry.py:56] Registering provider: basic
+2024-02-12:15:33:02,424 DEBUG    [registry.py:56] Registering provider: basic
+2024-02-12:15:33:02,442 DEBUG    [config.py:290] Starting component System
+2024-02-12:15:33:02,442 DEBUG    [config.py:290] Starting component Posthog
+2024-02-12:15:33:02,442 DEBUG    [config.py:290] Starting component OpenTelemetryClient
+2024-02-12:15:33:02,442 DEBUG    [config.py:290] Starting component ConfigurationClientAuthCredentialsProvider
+2024-02-12:15:33:02,442 DEBUG    [config.py:290] Starting component TokenAuthClientProvider
+2024-02-12:15:33:02,442 DEBUG    [config.py:290] Starting component RequestsClientAuthProtocolAdapter
+2024-02-12:15:33:02,442 DEBUG    [config.py:290] Starting component FastAPI
+2024-02-12:15:33:02,442 INFO     [posthog.py:20] Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2024-02-12:15:33:02,442 DEBUG    [fastapi.py:80] Skipping port as the user is passing a full URL
+2024-02-12:15:33:02,443 DEBUG    [config.py:290] Starting component System
+2024-02-12:15:33:02,443 DEBUG    [config.py:290] Starting component Posthog
+2024-02-12:15:33:02,443 DEBUG    [config.py:290] Starting component OpenTelemetryClient
+2024-02-12:15:33:02,443 DEBUG    [config.py:290] Starting component ConfigurationClientAuthCredentialsProvider
+2024-02-12:15:33:02,443 DEBUG    [config.py:290] Starting component TokenAuthClientProvider
+2024-02-12:15:33:02,443 DEBUG    [config.py:290] Starting component RequestsClientAuthProtocolAdapter
+2024-02-12:15:33:02,443 DEBUG    [config.py:290] Starting component FastAPI
+2024-02-12:15:33:02,472 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): chroma-proxy.vhi.ai:443
+2024-02-12:15:33:05,128 DEBUG    [connectionpool.py:474] https://chroma-proxy.vhi.ai:443 "GET /api/v1/tenants/default_tenant HTTP/1.1" 200 25
+2024-02-12:15:33:05,171 DEBUG    [connectionpool.py:474] https://chroma-proxy.vhi.ai:443 "GET /api/v1/databases/default_database?tenant=default_tenant HTTP/1.1" 200 97
+2024-02-12:15:33:05,183 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): chroma-proxy.vhi.ai:443
+2024-02-12:15:33:05,266 DEBUG    [connectionpool.py:474] https://chroma-proxy.vhi.ai:443 "GET /api/v1/collections/talonic_collection?tenant=default_tenant&database=default_database HTTP/1.1" 200 145
+2024-02-12:15:33:05,323 DEBUG    [connectionpool.py:474] https://chroma-proxy.vhi.ai:443 "POST /api/v1/collections/b20abdcc-06f4-48cb-a7a3-db0c951fa96d/get HTTP/1.1" 200 455
+2024-02-12:15:33:05,377 DEBUG    [connectionpool.py:474] https://chroma-proxy.vhi.ai:443 "POST /api/v1/collections/b20abdcc-06f4-48cb-a7a3-db0c951fa96d/get HTTP/1.1" 200 40387
+2024-02-12:15:33:05,741 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): app.posthog.com:443
+2024-02-12:15:33:05,919 DEBUG    [connectionpool.py:474] https://app.posthog.com:443 "POST /batch/ HTTP/1.1" 200 None
+2024-02-12:15:33:06,060 INFO     [vector_search.py:103] Similarity Result:
+2024-02-12:15:33:06,070 INFO     [vector_search.py:103] Similarity Result:
+2024-02-12:15:33:06,070 INFO     [vector_search.py:107] Element: ('eb2eb73d-1d52-45ea-858c-5ba54972f937', 'Country') - Score: 0.5355636477470398
+2024-02-12:15:33:06,070 INFO     [vector_search.py:107] Element: ('eb2eb73d-1d52-45ea-858c-5ba54972f937', 'Year') - Score: 0.35438990592956543
+2024-02-12:15:33:06,070 INFO     [vector_search.py:107] Element: ('eb2eb73d-1d52-45ea-858c-5ba54972f937', 'Population') - Score: 0.30581989884376526
+2024-02-12:15:33:06,080 INFO     [vector_search.py:103] Similarity Result:
+2024-02-12:15:33:06,080 INFO     [vector_search.py:107] Element: ('eb2eb73d-1d52-45ea-858c-5ba54972f937', 'GDP') - Score: 0.3847130537033081
+2024-02-12:15:33:06,080 INFO     [vector_search.py:107] Element: ('eb2eb73d-1d52-45ea-858c-5ba54972f937', 'Year') - Score: 0.3525029420852661
+2024-02-12:15:33:06,088 INFO     [vector_search.py:103] Similarity Result:
+2024-02-12:15:33:13,295 INFO     [prebuilt.py:184] SELECTED TABLES
+2024-02-12:20:35:26,538 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-12:20:35:26,643 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet-overview HTTP/1.1" 500 103

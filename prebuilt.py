@@ -5,6 +5,7 @@ import argparse
 import sys
 from typing import List
 import glob, os.path
+import requests
 
 from aenum import extend_enum
 
@@ -37,7 +38,8 @@ class Extractor:
                  token: str,
                  customer_request: str,
                  make_plot: bool = False,
-                 selected_tables: List[str] = None):
+                 selected_tables: List[str] = None,
+                 debug=False):
 
         """
         Initialize a request object.
@@ -51,10 +53,11 @@ class Extractor:
 
         self.api_key = api_key
         self.token = token
+        self.debug = debug
         self.openai_api_key = openai_api_key
         self.customer_request = customer_request
         self.make_plot = make_plot
-        self.llm = OpenAI(api_token=openai_api_key, model="gpt-4-", max_tokens=1000) #
+        self.llm = OpenAI(api_token=openai_api_key, model="gpt-4", max_tokens=1000) #
         self.cwd = Path(__file__).parent.resolve()
 
         self.load_meta_table()
@@ -82,12 +85,33 @@ class Extractor:
 
         # save file name for each table
 
+    def call_table(self, sheet_id):
+        base_url = 'https://backend.vhi.ai/service-api'
+        headers = {'Authorization': f'Bearer {self.token}',
+                   'x-api-key': f'{self.api_key}'}
+
+        response = requests.get(f"{base_url}/sheet/{sheet_id}", headers=headers)
+        if response.status_code == 200:
+            sheet_data = response.json()
+            return pd.DataFrame(sheet_data['sheet'])
+        else:
+            print("Error:", response.status_code, response.text)
+
     def load_meta_table(self):
-        '''
-        self.api_key = api_key
-        self.token = token
-        '''
-        self.meta_data_table = pd.read_json(self.cwd / 'datasets/meta_data_table.json')
+        base_url = 'https://backend.vhi.ai/service-api'
+        headers = {'Authorization': f'Bearer {self.token}',
+                   'x-api-key': f'{self.api_key}'}
+
+        result = requests.get(f"{base_url}/metadata", headers=headers)
+
+        meta = result.content
+        meta = meta.decode('utf-8')
+        import json
+        meta_dict = json.loads(meta)
+        # del meta_dict['userId'] used as sheet_id
+        del meta_dict['column_type']
+        del meta_dict['scopes']
+        self.meta_data_table = pd.DataFrame(meta_dict)
 
     def get_selected_tables(self,
                             selected_tables):
@@ -160,20 +184,10 @@ class Extractor:
         logging.info(f"SELECTED TABLES")
         pd.set_option('display.max_columns', None)
 
-        cwd = Path(__file__).parent.resolve()
-
         for key in self.selected_table_keys:
-            table_path = Path(self.meta_data_table.loc[self.meta_data_table['key'] == key, 'path'].tolist()[0])
-            file_extension = table_path.suffix
-
-            table_path = cwd / table_path
-
-            if file_extension in ['.csv', '.xlsx']:
-                table = pd.read_csv(table_path) if file_extension == '.csv' else pd.read_excel(table_path)
-
-                logging.info(f"\n{table.head(n=3)}")
-
-                self.selected_tables.append(table)
+            sheet_id = self.meta_data_table.loc[self.meta_data_table['key'] == key, 'userId']
+            table = self.call_table(sheet_id)
+            self.selected_tables.append(table)
 
     def run_request(self):
         """agent = Agent(self.selected_tables, config={"llm": self.llm}, memory_size=10)
