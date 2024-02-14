@@ -55,7 +55,6 @@ class CompleteTable:
         if response.status_code == 200:
             sheet_data = response.json()
             self.table = pd.DataFrame(sheet_data['sheet'])
-            self.table.columns = self.table.iloc[0].to_list()
 
         else:
             print("Error:", response.status_code, response.text)

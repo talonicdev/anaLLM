@@ -30,7 +30,7 @@ def test_complete_table():
     # 4. enter window.sessionStorage.getItem('accessToken')
     # 5. copy token
 
-    '''api_key = os.environ['API_KEY']
+    api_key = os.environ['API_KEY']
     token = "b497e715-0373-4f48-a531-96a1d6fe8af3"
     base_url = 'https://backend.vhi.ai/service-api'
     headers = {'Authorization': f'Bearer {token}',
@@ -38,18 +38,19 @@ def test_complete_table():
 
     response = requests.get(f"{base_url}/sheet-overview", headers=headers)
     if response.status_code == 200:
-        all_sheets = response.json()'''
+        all_sheets = response.json()
 
     token = "b497e715-0373-4f48-a531-96a1d6fe8af3"
-    # sheet_id = "333d2d8e-99e9-4398-ac0b-f97b1b68cf95"
+    sheet_id = "ae00aaf1-6f50-42d7-9977-801c5ba971c0"
     users_prompt = "Fill this table only with GDP less than $4.0 trillion."
+    # './empty_data.xlsx'
 
     ct = CompleteTable(openai_api_key=os.environ['KEY'],
-                       table_path='./empty_data.xlsx',
+                       table_path=None,
                        token=token,
                        users_prompt=users_prompt,
                        api_key=os.environ['API_KEY'],
-                       sheet_id=None,
+                       sheet_id=sheet_id,
                        debug=False)
     e_cols, o_cols = ct.get_empty_cols()
     c_request, useful, exists_cols, empty_cols = ct.get_table_question(e_cols, o_cols)

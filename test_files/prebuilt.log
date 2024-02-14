@@ -15531,3 +15531,88 @@ Finally, we present this new list as our result. This list now contains only the
                 
 2024-02-14:20:38:07,294 DEBUG    [_trace.py:45] close.started
 2024-02-14:20:38:07,295 DEBUG    [_trace.py:45] close.complete
+2024-02-14:20:51:01,117 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-14:20:51:02,042 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet-overview HTTP/1.1" 200 2617
+2024-02-14:20:51:17,693 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-14:20:51:17,799 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet/ae00aaf1-6f50-42d7-9977-801c5ba971c0 HTTP/1.1" 200 189
+2024-02-14:20:51:59,397 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-14:20:52:00,326 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet-overview HTTP/1.1" 200 2617
+2024-02-14:20:52:01,193 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-14:20:52:01,302 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/sheet/ae00aaf1-6f50-42d7-9977-801c5ba971c0 HTTP/1.1" 200 189
+2024-02-14:20:52:02,479 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-14:20:52:02,480 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-14:20:52:02,488 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-14:20:52:02,488 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-14:20:52:02,541 DEBUG    [_base_client.py:439] Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'system', 'content': 'Background Info: A dataframe with several columns is given to us. One of these columns is empty, which is called \'new_column\'. We need to fill this column with values according to the information obtained by some of the other columns. \'exists\' is a list with the column names that are already filled with values. \'question\' is an additional question from us. If \'question\' is \'None\' we don\'t have an additional question. \n Tasks: 1. Determine which columns might be useful to fill the empty column, \'new_column\'. Define the task based on the name of the columns and \'question\'. \n Rules: 1. Return your result as "request = " and then your result. 2. Start your answer with \'Calculate ...\'. 3. List the columns that are useful to fill the empty column. 4.Do NOT add any explanation to you answer.'}, {'role': 'user', 'content': "new_column: production cost\nquestion: None\nexists: [['product', 'staff expenses']]\nanswer:"}, {'role': 'assistant', 'content': "request = Calculate the 'production cost' for each product. Useful columns = 'product'"}, {'role': 'user', 'content': "new_column: satisfaction\nquestion: Consider the area zip code.\nexists: [['customer', 'area zip code', 'age']]\nanswer:"}, {'role': 'assistant', 'content': "request = Calculate the customer 'satisfaction' based on 'area zip code'. Useful columns = 'customer'"}, {'role': 'user', 'content': "new_column: sales volume\nquestion: None\nexists: [['product', 'production cost', 'staff expenses', 'other expenses', 'material', 'revenue']]\nanswer:"}, {'role': 'assistant', 'content': "request = Calculate the 'sales volume' for each product based on 'production cost', 'staff expenses', 'other expenses' and 'revenue'. Useful columns = 'production cost', 'staff expenses', 'other expenses' and 'revenue'"}, {'role': 'user', 'content': "new_column: our sales volume\nquestion: None\nexists: [['product', 'reference sales volume']]\nanswer:"}, {'role': 'assistant', 'content': "request = Calculate 'our sales volume' for each 'product'. Useful columns = 'product', 'sales volume'"}, {'role': 'user', 'content': "new_column: ['country', 'gdp']\nquestion: Fill this table only with GDP less than $4.0 trillion.\nexists: []\nanswer:"}], 'model': 'gpt-4-1106-preview', 'n': 1, 'stream': False, 'temperature': 0.6}}
+2024-02-14:20:52:02,568 DEBUG    [_trace.py:45] connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=None socket_options=None
+2024-02-14:20:52:02,621 DEBUG    [_trace.py:45] connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x2915dc790>
+2024-02-14:20:52:02,621 DEBUG    [_trace.py:45] start_tls.started ssl_context=<ssl.SSLContext object at 0x2915c4d40> server_hostname='api.openai.com' timeout=None
+2024-02-14:20:52:02,651 DEBUG    [_trace.py:45] start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x2915b7a50>
+2024-02-14:20:52:02,652 DEBUG    [_trace.py:45] send_request_headers.started request=<Request [b'POST']>
+2024-02-14:20:52:02,652 DEBUG    [_trace.py:45] send_request_headers.complete
+2024-02-14:20:52:02,652 DEBUG    [_trace.py:45] send_request_body.started request=<Request [b'POST']>
+2024-02-14:20:52:02,652 DEBUG    [_trace.py:45] send_request_body.complete
+2024-02-14:20:52:02,652 DEBUG    [_trace.py:45] receive_response_headers.started request=<Request [b'POST']>
+2024-02-14:20:52:05,161 DEBUG    [_trace.py:45] receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Wed, 14 Feb 2024 19:52:05 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'access-control-allow-origin', b'*'), (b'Cache-Control', b'no-cache, must-revalidate'), (b'openai-model', b'gpt-4-1106-preview'), (b'openai-organization', b'talonic'), (b'openai-processing-ms', b'2007'), (b'openai-version', b'2020-10-01'), (b'strict-transport-security', b'max-age=15724800; includeSubDomains'), (b'x-ratelimit-limit-requests', b'5000'), (b'x-ratelimit-limit-tokens', b'5000000'), (b'x-ratelimit-remaining-requests', b'4999'), (b'x-ratelimit-remaining-tokens', b'4999506'), (b'x-ratelimit-reset-requests', b'12ms'), (b'x-ratelimit-reset-tokens', b'8.519s'), (b'x-request-id', b'req_18ec8d6a8b7aab73b9682a8d5744881e'), (b'CF-Cache-Status', b'DYNAMIC'), (b'Set-Cookie', b'__cf_bm=B0zoq.Dba8e4_H2zRcXENaq_bgIzgfuzXmL30WeEA6Q-1707940325-1.0-Ae7MLUb+o7jWzBoTfJqq2vflHyE8U8mNpAi2jZKyZvtNA/jtQ3d0HTFnMpA2BPvDkz2LG5iIgRLe87ZCAxUXfCg=; path=/; expires=Wed, 14-Feb-24 20:22:05 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Set-Cookie', b'_cfuvid=hOp5JL3n6zzZnEVF5VI1jVUMDwhg1k_7Pstt8RhQK5I-1707940325133-0.0-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Server', b'cloudflare'), (b'CF-RAY', b'8557d9689e68bff5-WAW'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+2024-02-14:20:52:05,166 INFO     [_client.py:1013] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-02-14:20:52:05,167 DEBUG    [_trace.py:45] receive_response_body.started request=<Request [b'POST']>
+2024-02-14:20:52:05,168 DEBUG    [_trace.py:45] receive_response_body.complete
+2024-02-14:20:52:05,168 DEBUG    [_trace.py:45] response_closed.started
+2024-02-14:20:52:05,168 DEBUG    [_trace.py:45] response_closed.complete
+2024-02-14:20:52:05,168 DEBUG    [_base_client.py:933] HTTP Request: POST https://api.openai.com/v1/chat/completions "200 OK"
+2024-02-14:20:52:08,090 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-14:20:52:08,091 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-14:20:52:08,105 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
+2024-02-14:20:52:08,200 DEBUG    [connectionpool.py:474] https://backend.vhi.ai:443 "GET /service-api/metadata HTTP/1.1" 200 2964
+2024-02-14:20:52:09,531 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-14:20:52:09,532 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-14:20:52:09,543 DEBUG    [_config.py:78] load_ssl_context verify=True cert=None trust_env=True http2=False
+2024-02-14:20:52:09,544 DEBUG    [_config.py:144] load_verify_locations cafile='/Users/stella/talonic/anaLLM/venv/lib/python3.11/site-packages/certifi/cacert.pem'
+2024-02-14:20:52:09,560 DEBUG    [_base_client.py:439] Request options: {'method': 'post', 'url': '/chat/completions', 'files': None, 'json_data': {'messages': [{'role': 'user', 'content': "System: Background Info: 'Request Item List' is the request. We have several dataframes that help us to answer 'Request Item List'. Return useful column names to answer 'Request Item List'. We will query our dataframes via those column names. \n Rules: 1. Return a list with your results. 2. Do NOT add any explanation.\nHuman: Request Item List: How much profit were made in each country in our company?\nAI: ['revenue', 'country']\nHuman: Request Item List: Calculate 'country' and 'gdp' where 'gdp' is less than $4.0 trillion. "}], 'model': 'gpt-4-1106-preview', 'n': 1, 'stream': False, 'temperature': 0.0}}
+2024-02-14:20:52:09,561 DEBUG    [_trace.py:45] connect_tcp.started host='api.openai.com' port=443 local_address=None timeout=None socket_options=None
+2024-02-14:20:52:09,591 DEBUG    [_trace.py:45] connect_tcp.complete return_value=<httpcore._backends.sync.SyncStream object at 0x292ae2250>
+2024-02-14:20:52:09,592 DEBUG    [_trace.py:45] start_tls.started ssl_context=<ssl.SSLContext object at 0x2915c7920> server_hostname='api.openai.com' timeout=None
+2024-02-14:20:52:09,623 DEBUG    [_trace.py:45] start_tls.complete return_value=<httpcore._backends.sync.SyncStream object at 0x292ae2310>
+2024-02-14:20:52:09,623 DEBUG    [_trace.py:45] send_request_headers.started request=<Request [b'POST']>
+2024-02-14:20:52:09,623 DEBUG    [_trace.py:45] send_request_headers.complete
+2024-02-14:20:52:09,623 DEBUG    [_trace.py:45] send_request_body.started request=<Request [b'POST']>
+2024-02-14:20:52:09,624 DEBUG    [_trace.py:45] send_request_body.complete
+2024-02-14:20:52:09,624 DEBUG    [_trace.py:45] receive_response_headers.started request=<Request [b'POST']>
+2024-02-14:20:52:10,877 DEBUG    [_trace.py:45] receive_response_headers.complete return_value=(b'HTTP/1.1', 200, b'OK', [(b'Date', b'Wed, 14 Feb 2024 19:52:10 GMT'), (b'Content-Type', b'application/json'), (b'Transfer-Encoding', b'chunked'), (b'Connection', b'keep-alive'), (b'access-control-allow-origin', b'*'), (b'Cache-Control', b'no-cache, must-revalidate'), (b'openai-model', b'gpt-4-1106-preview'), (b'openai-organization', b'talonic'), (b'openai-processing-ms', b'915'), (b'openai-version', b'2020-10-01'), (b'strict-transport-security', b'max-age=15724800; includeSubDomains'), (b'x-ratelimit-limit-requests', b'5000'), (b'x-ratelimit-limit-tokens', b'5000000'), (b'x-ratelimit-remaining-requests', b'4999'), (b'x-ratelimit-remaining-tokens', b'4999731'), (b'x-ratelimit-reset-requests', b'12ms'), (b'x-ratelimit-reset-tokens', b'4.643s'), (b'x-request-id', b'req_20e229a87015aa60b5156881869c6b6a'), (b'CF-Cache-Status', b'DYNAMIC'), (b'Set-Cookie', b'__cf_bm=F9rbEos8yaXM5Bv15T5pUln6ORZgMUX7xXMLEE8guC8-1707940330-1.0-AeS0AiQ1+wLQ0hQlJMYGpCgMotrBYGZSHz1UvXQSpuZ0b29YF0VoGA0xPxxvTSVjAH1pQx0CcVigtg99XtYWzqw=; path=/; expires=Wed, 14-Feb-24 20:22:10 GMT; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Set-Cookie', b'_cfuvid=0hKUtaCRgKT8ZA0HeYs021E4uOI88Tvcf5XRkwI9E2w-1707940330785-0.0-604800000; path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None'), (b'Server', b'cloudflare'), (b'CF-RAY', b'8557d9943e4734c1-WAW'), (b'Content-Encoding', b'gzip'), (b'alt-svc', b'h3=":443"; ma=86400')])
+2024-02-14:20:52:10,880 INFO     [_client.py:1013] HTTP Request: POST https://api.openai.com/v1/chat/completions "HTTP/1.1 200 OK"
+2024-02-14:20:52:10,881 DEBUG    [_trace.py:45] receive_response_body.started request=<Request [b'POST']>
+2024-02-14:20:52:10,882 DEBUG    [_trace.py:45] receive_response_body.complete
+2024-02-14:20:52:10,882 DEBUG    [_trace.py:45] response_closed.started
+2024-02-14:20:52:10,882 DEBUG    [_trace.py:45] response_closed.complete
+2024-02-14:20:52:10,883 DEBUG    [_base_client.py:933] HTTP Request: POST https://api.openai.com/v1/chat/completions "200 OK"
+2024-02-14:20:52:12,175 INFO     [SentenceTransformer.py:66] Load pretrained SentenceTransformer: all-MiniLM-L6-v2
+2024-02-14:20:52:12,260 DEBUG    [_trace.py:45] close.started
+2024-02-14:20:52:12,260 DEBUG    [_trace.py:45] close.complete
+2024-02-14:20:52:12,485 INFO     [SentenceTransformer.py:105] Use pytorch device: cpu
+2024-02-14:20:52:12,491 INFO     [posthog.py:20] Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2024-02-14:20:52:12,495 DEBUG    [registry.py:56] Registering provider: htpasswd_file
+2024-02-14:20:52:12,562 DEBUG    [fastapi.py:80] Skipping port as the user is passing a full URL
+2024-02-14:20:52:12,565 DEBUG    [registry.py:56] Registering provider: local_authz_config
+2024-02-14:20:52:12,566 DEBUG    [registry.py:56] Registering provider: simple_rbac
+2024-02-14:20:52:12,568 DEBUG    [registry.py:56] Registering provider: basic
+2024-02-14:20:52:12,569 DEBUG    [registry.py:56] Registering provider: basic
+2024-02-14:20:52:12,587 DEBUG    [config.py:290] Starting component System
+2024-02-14:20:52:12,587 DEBUG    [config.py:290] Starting component Posthog
+2024-02-14:20:52:12,588 DEBUG    [config.py:290] Starting component OpenTelemetryClient
+2024-02-14:20:52:12,588 DEBUG    [config.py:290] Starting component ConfigurationClientAuthCredentialsProvider
+2024-02-14:20:52:12,588 DEBUG    [config.py:290] Starting component TokenAuthClientProvider
+2024-02-14:20:52:12,588 DEBUG    [config.py:290] Starting component RequestsClientAuthProtocolAdapter
+2024-02-14:20:52:12,588 DEBUG    [config.py:290] Starting component FastAPI
+2024-02-14:20:52:12,588 INFO     [posthog.py:20] Anonymized telemetry enabled. See                     https://docs.trychroma.com/telemetry for more information.
+2024-02-14:20:52:12,588 DEBUG    [fastapi.py:80] Skipping port as the user is passing a full URL
+2024-02-14:20:52:12,588 DEBUG    [config.py:290] Starting component System
+2024-02-14:20:52:12,589 DEBUG    [config.py:290] Starting component Posthog
+2024-02-14:20:52:12,589 DEBUG    [config.py:290] Starting component OpenTelemetryClient
+2024-02-14:20:52:12,589 DEBUG    [config.py:290] Starting component ConfigurationClientAuthCredentialsProvider
+2024-02-14:20:52:12,589 DEBUG    [config.py:290] Starting component TokenAuthClientProvider
+2024-02-14:20:52:12,589 DEBUG    [config.py:290] Starting component RequestsClientAuthProtocolAdapter
+2024-02-14:20:52:12,589 DEBUG    [config.py:290] Starting component FastAPI
+2024-02-14:20:52:12,636 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): chroma-proxy.vhi.ai:443
+2024-02-14:20:52:52,466 DEBUG    [_trace.py:45] close.started
+2024-02-14:20:52:52,467 DEBUG    [_trace.py:45] close.complete
+2024-02-14:20:52:58,302 DEBUG    [connectionpool.py:1019] Starting new HTTPS connection (1): backend.vhi.ai:443
