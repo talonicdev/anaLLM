@@ -157,22 +157,23 @@ class Extractor:
         """
 
         me = MetaEngine(self.token)
-        me.load_collection('talonic_collection')  # sheets for all users
-        me.load_vec()
+        me.load_collection('talonic_collection')
 
-        temp_res = []
+        if me.collection.count() > 0:
+            me.load_vec()
+            temp_res = []
 
-        for i, query in enumerate(self.keys_words):
-            similar_results = me.find_semantic(query)
-            for res in similar_results:
-                if i == 0:
-                    self.selected_table_keys.append(res[0])
-                else:
-                    temp_res.append(res[0])
+            for i, query in enumerate(self.keys_words):
+                similar_results = me.find_semantic(query)
+                for res in similar_results:
+                    if i == 0:
+                        self.selected_table_keys.append(res[0])
+                    else:
+                        temp_res.append(res[0])
 
-            # to get an intersection of all values
-            if i != 0:
-                self.selected_table_keys = [value for value in temp_res if value in self.selected_table_keys]
+                # to get an intersection of all values
+                if i != 0:
+                    self.selected_table_keys = [value for value in temp_res if value in self.selected_table_keys]
 
         self.selected_table_keys = list(set(self.selected_table_keys))
         self.get_tables()

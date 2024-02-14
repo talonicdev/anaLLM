@@ -381,10 +381,7 @@ class TableSetter:
         meta_columns = [list(ast.literal_eval(self.meta_data_table['column_names'][i]).values()) for i in range(len(self.meta_data_table))]
         table_indices = [self.meta_data_table['key'][i] for i in range(len(self.meta_data_table))]
 
-        if self.new_collection:
-            me.create_new_collection('talonic_collection')
-        else:
-            me.load_collection('talonic_collection')
+        me.load_collection('talonic_collection')
         vec_num = 0
         for col, table_index in zip(meta_columns, table_indices):
             me.embed_new_vec(vec_num, table_index, col)
