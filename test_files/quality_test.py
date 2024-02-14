@@ -41,15 +41,15 @@ def test_complete_table():
         all_sheets = response.json()'''
 
     token = "b497e715-0373-4f48-a531-96a1d6fe8af3"
-    sheet_id = "333d2d8e-99e9-4398-ac0b-f97b1b68cf95"
-    users_prompt = "what are the preferred payments only for male?"
+    # sheet_id = "333d2d8e-99e9-4398-ac0b-f97b1b68cf95"
+    users_prompt = "Fill this table only with GDP less than $4.0 trillion."
 
     ct = CompleteTable(openai_api_key=os.environ['KEY'],
-                       table_path='./rating_table.xlsx',
+                       table_path='./empty_data.xlsx',
                        token=token,
                        users_prompt=users_prompt,
                        api_key=os.environ['API_KEY'],
-                       sheet_id=sheet_id,
+                       sheet_id=None,
                        debug=False)
     e_cols, o_cols = ct.get_empty_cols()
     c_request, useful, exists_cols, empty_cols = ct.get_table_question(e_cols, o_cols)

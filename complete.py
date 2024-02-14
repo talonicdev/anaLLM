@@ -26,7 +26,7 @@ class CompleteTable:
                  openai_api_key: str,
                  api_key: str,
                  token: str,
-                 sheet_id: str,
+                 sheet_id: str = None,
                  content: str = None,
                  table_path: str = None,
                  users_prompt: str = None,
@@ -64,6 +64,8 @@ class CompleteTable:
         if self.content:
             self.table = pd.read_csv(StringIO(self.content))
             self.table = self.table[1:]
+        elif self.table_path:
+            self.table = pd.read_excel(self.table_path, header=1)
         else:
             base_url = 'https://backend.vhi.ai/service-api'
             headers = {'Authorization': f'Bearer {token}',
@@ -205,7 +207,7 @@ class CompleteTable:
 
         df = self.table.drop(columns=empty_cols, inplace=False)
 
-        extraction = Extractor(openai_api_key=os.environ['KEY'],
+        extraction = Extractor(openai_api_key=self.openai_api_key,
                                customer_request=request,
                                api_key=self.api_key,
                                token=self.token)
