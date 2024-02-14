@@ -61,10 +61,10 @@ class BaseEmbedding:
         self.collection = None
 
     def create_new_collection(self, collection_name):
-        self.collection = self.chroma_client.create_collection(name=collection_name)
+        self.collection = self.chroma_client.get_or_create_collection(name=collection_name)
 
     def load_collection(self, collection_name):
-        self.collection = self.chroma_client.get_collection(name=collection_name)
+        self.collection = self.chroma_client.get_or_create_collection(name=collection_name)
 
     def embed_new_vec(self, vec_num, table_index, corpus):
         new_embed = self.embedder.encode(corpus, convert_to_tensor=True, show_progress_bar=True)
