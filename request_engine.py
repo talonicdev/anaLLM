@@ -24,6 +24,8 @@ from langchain_core.prompts import FewShotChatMessagePromptTemplate, ChatPromptT
 
 from utils.conf import load_templates, get_template, WordContext, WordException
 from vector_search import MetaEngine
+from config import Config
+from common import Common, Requests, WriteType
 
 logging.basicConfig(filename='prebuilt.log',
                     format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -53,6 +55,15 @@ class TableSetter:
         self.token = token
         self.sheet_id = sheet_id
         self.openai_api_key = openai_api_key
+        # Initialize config first..
+        self.config = Config(
+            openai_api_key = openai_api_key,
+            token = token,
+            api_key = api_key
+        )
+        # ... then instantiate Common and Requests with the Config instance..
+        self.common = Common(config=self.config)
+        
         self.new_collection = new_collection
         os.environ['OPENAI_API_KEY'] = openai_api_key
 
@@ -84,7 +95,7 @@ class TableSetter:
         response = requests.get(f"{base_url}/sheet/{sheet_id}", headers=headers)
         if response.status_code == 200:
             sheet_data = response.json()
-            self.dataset_name = sheet_data['sheetName'] if 'sheetName' in sheet_data else sheet_data['tableName']
+            self.dataset_name = f"{sheet_data['tableName']} - {sheet_data['sheetName']}"
             self.table = pd.DataFrame(sheet_data['sheet'])
         else:
             print("Error:", response.status_code, response.text)
@@ -160,12 +171,12 @@ class TableSetter:
         Creates new entry in meta_data_table w/ key, table_name, creation_date, last_update
         """
         key = datetime.timestamp(datetime.now())
+        self.load_table()
         table_name = self.destination_name if self.destination_name else self.dataset_name
         date_time = datetime.fromtimestamp(key)
         last_update = creation_date = date_time.strftime("%d-%m-%Y, %H:%M:%S")
         self.key = self.sheet_id
-
-        self.load_table()
+        
         self.meta_data_table.loc[len(self.meta_data_table.index)] = [
             self.key, table_name, creation_date, last_update, *[None] * 3
         ]
@@ -394,10 +405,11 @@ class TableSetter:
         base_url = 'https://backend.vhi.ai/service-api'
         headers = {'Authorization': f'Bearer {self.token}',
                    'x-api-key': f'{self.api_key}'}
-        metadata = self.meta_data_table.to_json()
-        dict_meta = ast.literal_eval(metadata)
+        metadata = self.meta_data_table.to_json(path_or_buf=None)
+        dict_meta = json.loads(metadata)
         result = requests.patch(f"{base_url}/metadata", headers=headers, json=dict_meta)
-        print(f'saved table: {result}')
+        if result.status_code == 200:
+            self.common.write(WriteType.RESULT,True)
         '''x = result.status_code
         y = result.json()'''
 

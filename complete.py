@@ -16,6 +16,9 @@ from pandasai.llm import OpenAI
 from prebuilt import Extractor
 from utils.conf import load_templates, get_template
 
+from config import Config
+from common import Common, Requests, WriteType
+
 os.environ['API_USER'] = config('USER')
 os.environ['OPENAI_API_KEY'] = config('KEY')
 
@@ -33,6 +36,15 @@ class CompleteTable:
                  debug: bool = False,
                  ):
 
+        self.config = Config(
+            token = token,
+            api_key = api_key,
+            sheet_id = sheet_id,
+            openai_api_key = openai_api_key
+        )
+        self.requests = Requests(config=self.config)
+        self.common = Common(config=self.config)
+        
         self.content = content
         self.table_path = table_path
         self.openai_api_key = openai_api_key
@@ -50,14 +62,15 @@ class CompleteTable:
         self.prompt_template = None
         self.load_table(api_key, token, sheet_id)
 
-    def call_table(self, base_url, sheet_id, headers):
-        response = requests.get(f"{base_url}/sheet/{sheet_id}", headers=headers)
+    def call_table(self, sheet_id):
+        response = self.requests.get(f'sheet/{sheet_id}')
         if response.status_code == 200:
             sheet_data = response.json()
-            self.table = pd.DataFrame(sheet_data['sheet'])
-
+            columns = sheet_data['sheet'].keys()
+            self.table = pd.DataFrame(sheet_data['sheet'], columns=columns)
+            self.common.write(WriteType.DEBUG,self.table)
         else:
-            print("Error:", response.status_code, response.text)
+            self.common.write(WriteType.ERROR,{'sheet_id':sheet_id,'code':response.status_code,'text':response.text})
 
     def load_table(self, api_key, token, sheet_id):
         if self.content:
@@ -66,24 +79,20 @@ class CompleteTable:
         elif self.table_path:
             self.table = pd.read_excel(self.table_path, header=1)
         else:
-            base_url = 'https://backend.vhi.ai/service-api'
-            headers = {'Authorization': f'Bearer {token}',
-                       'x-api-key': f'{api_key}'}
-
             if self.debug:
                 # response is a list of dictionaries, where each dictionary is representative for a table
-                response = requests.get(f"{base_url}/sheet-overview", headers=headers)
+                response = self.requests.get('sheet-overview')
                 if response.status_code == 200:
                     all_sheets = response.json()
                     example_sheet_id = all_sheets[0]['sheetId']
-                    self.call_table(base_url, example_sheet_id, headers)
+                    self.call_table(example_sheet_id)
                 elif response.status_code == 401:
                     raise ValueError("Invalid token.")
                 else:
                     print("Error:", response.status_code, response.text)
 
             else:
-                self.call_table(base_url, sheet_id, headers)
+                self.call_table(sheet_id)
 
     def get_empty_cols(self) -> Tuple[list, ...]:
         """
@@ -204,7 +213,8 @@ class CompleteTable:
                 add_txt += f' The {col} are: {obj_elem}'
         request += add_txt
 
-        df = self.table.drop(columns=empty_cols, inplace=False)
+        #df = self.table.drop(columns=empty_cols, inplace=False)
+        df = self.table
 
         extraction = Extractor(openai_api_key=self.openai_api_key,
                                customer_request=request,

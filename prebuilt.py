@@ -6,6 +6,7 @@ import sys
 from typing import List
 import glob, os.path
 import requests
+import pprint
 
 from aenum import extend_enum
 
@@ -16,12 +17,16 @@ import pandasai
 from pathlib import Path
 from pandasai import SmartDatalake, Agent
 from pandasai.llm import OpenAI
+from pandasai.helpers.openai_info import get_openai_callback
 
 from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
 from vector_search import MetaEngine
 from utils.conf import load_templates, get_template, WordContext
+
+from common import Common, Requests, WriteType
+from config import Config
 
 logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
     datefmt='%Y-%m-%d:%H:%M:%S',
@@ -57,8 +62,19 @@ class Extractor:
         self.openai_api_key = openai_api_key
         self.customer_request = customer_request
         self.make_plot = make_plot
-        self.llm = OpenAI(api_token=openai_api_key, model="gpt-4", max_tokens=1000) #
         self.cwd = Path(__file__).parent.resolve()
+        
+        # Initialize config first..
+        self.config = Config(
+            openai_api_key = openai_api_key,
+            token = token,
+            api_key = api_key
+        )
+        # ... then instantiate Common and Requests with the Config instance..
+        self.common = Common(config=self.config)
+        self.requests = Requests(config=self.config)
+        # .. and finally get the LLM with appropriate config values
+        self.llm = self.common.get_openAI_llm()
 
         self.load_meta_table()
 
@@ -86,23 +102,25 @@ class Extractor:
         # save file name for each table
 
     def call_table(self, sheet_id):
-        base_url = 'https://backend.vhi.ai/service-api'
-        headers = {'Authorization': f'Bearer {self.token}',
-                   'x-api-key': f'{self.api_key}'}
+        response = self.requests.get(f'sheet/{sheet_id}')
+        #base_url = 'https://backend.vhi.ai/service-api'
+        #headers = {'Authorization': f'Bearer {self.token}',
+        #           'x-api-key': f'{self.api_key}'}
 
-        response = requests.get(f"{base_url}/sheet/{sheet_id}", headers=headers)
+        #response = requests.get(f"{base_url}/sheet/{sheet_id}", headers=headers)
         if response.status_code == 200:
             sheet_data = response.json()
             return pd.DataFrame(sheet_data['sheet'])
         else:
-            print("Error:", response.status_code, response.text)
+            self.common.write(WriteType.ERROR,response)
 
     def load_meta_table(self):
-        base_url = 'https://backend.vhi.ai/service-api'
-        headers = {'Authorization': f'Bearer {self.token}',
-                   'x-api-key': f'{self.api_key}'}
+        result = self.requests.get('metadata')
+        #base_url = 'https://backend.vhi.ai/service-api'
+        #headers = {'Authorization': f'Bearer {self.token}',
+        #           'x-api-key': f'{self.api_key}'}
 
-        result = requests.get(f"{base_url}/metadata", headers=headers)
+        #result = requests.get(f"{base_url}/metadata", headers=headers)
 
         meta = result.content
         meta = meta.decode('utf-8')
@@ -144,9 +162,9 @@ class Extractor:
         prompt = self.prompt_template.format(question=self.customer_request)
         prompt_template = ChatPromptTemplate.from_template(prompt)
         message = prompt_template.format_messages()
-
-        llm = ChatOpenAI(temperature=0, openai_api_key=os.getenv(self.openai_api_key), model_name="gpt-4-1106-preview")
-        response = llm(message)
+        llm = self.common.get_chatOpenAI_llm(temperature=0)
+        response = self.common.invoke_chatOpenAI(llm,message)
+        #response = llm(message)
 
         self.keys_words = ast.literal_eval(response.content)
 
@@ -157,7 +175,7 @@ class Extractor:
         """
 
         me = MetaEngine(self.token)
-        me.load_collection('talonic_collection')
+        me.load_collection(self.config.COLLECTION_NAME)
 
         if me.collection.count() > 0:
             me.load_vec()
@@ -204,30 +222,34 @@ class Extractor:
         self.dl = Agent(self.selected_tables,
                         config={"save_charts": True,
                                 "save_charts_path": f"{self.cwd}/output_plot",
-                                "llm": self.llm},
+                                "llm": self.llm,
+                                "save_logs": True,
+                                "enable_cache": False,
+                                "verbose": True,
+                                "llm_options": {
+                                    "request_timeout": self.config.REQUEST_TIMEOUT
+                                },
+                                "max_retries": self.config.MAX_RETRIES
+                                },
                         memory_size=10)
-        self.response = self.dl.chat(self.customer_request)
-        explanation = self.dl.explain()
-
-        if isinstance(self.response, str):
-            sys.stdout.write(f"TYPE: string\n")
-            sys.stdout.write(self.response)
-            sys.stdout.write("\n")
-
-            # add explain
-            sys.stdout.write(f"EXPLAIN: string\n")
-            sys.stdout.write(explanation)
-            sys.stdout.write("\n")
-
-        elif isinstance(self.response, dict):
-            # TODO: need an example with dict output
-            pass
-
-        elif isinstance(self.response, pandasai.smart_dataframe.SmartDataframe):
-            self.response.to_csv(f'{self.cwd}/output_tables/table_{self.get_uuid_name()}.csv')
+        
+        self.response = self.common.chat_agent(self.dl,self.customer_request)
+        
+        if isinstance(self.response,(str,dict,pd.DataFrame,pandasai.smart_dataframe.SmartDataframe)):
+            # Response is one of the expected data types
+            self.common.write(WriteType.RESULT,self.response)
+        else:
+            self.common.write(WriteType.ERROR,self.response)
 
         if self.make_plot:
             self.response.chat("Create a plot of your result.")
+            
+        
+        if self.config.LOG_LEVEL == 'trace':
+            sys.stdout.write(f"TYPE: LOGS\n: {pprint.pformat(self.dl._lake.logs)}")
+            
+        # Uncomment to print the full SmartDataLake logs
+        #sys.stdout.write(f"TYPE: LOGS\n: {pprint.pformat(self.dl._lake.logs)}")
 
         self.clean()
 
@@ -237,7 +259,7 @@ class Extractor:
         """
         self.write_out_files()
 
-        self.clean_out_dirs(f'{self.cwd}/output_tables', "*.csv")
+        #self.clean_out_dirs(f'{self.cwd}/output_tables', "*.csv")
         self.clean_out_dirs(f'{self.cwd}/output_plot', "*.png")
 
     @staticmethod
@@ -252,13 +274,13 @@ class Extractor:
         for f in filelist:
             with open(f, 'rb') as image_file:
                 encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
-                sys.stdout.write(f"TYPE: image\n")
+                sys.stdout.write(f"TYPE: IMAGE\n")
                 sys.stdout.write(encoded_string)
                 sys.stdout.write("\n")
 
         filelist = glob.glob(os.path.join(f'{cwd}/output_tables', '*.csv'))
         for f in filelist:
-            sys.stdout.write(f"TYPE: table\n")
+            sys.stdout.write(f"TYPE: TABLE\n")
             with open(f, "r") as my_input_file:
                 for idx, line in enumerate(my_input_file):
                     line = line.split(",")[1:]
@@ -293,6 +315,7 @@ class Extractor:
         self.dl = SmartDatalake(tables,
                                 config={"save_charts": True,
                                         "save_charts_path": "./output_plot",
+                                        "enable_cache": False,
                                         "llm": self.llm})
 
         self.new_response = self.dl.chat(request, output_type=output_type)
