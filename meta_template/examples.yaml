@@ -1,3 +1,6 @@
 example1:
   question: How much profit were made in each country in our company?
   answer: '[''revenue'', ''country'']'
+example2:
+  question: What's the GDP per capita growth rate of Belgium?
+  answer: '[''gdp'', ''population'',''belgium'',''growth rate'']'

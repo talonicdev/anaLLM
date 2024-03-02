@@ -1,6 +1,7 @@
 import sys
 import json
 import inspect
+import ast
 import requests
 import datetime
 from pandas import DataFrame
@@ -11,7 +12,7 @@ from pandasai.helpers.openai_info import get_openai_callback, OpenAICallbackHand
 from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts.few_shot import FewShotPromptTemplate
 from langchain_core.prompts import FewShotChatMessagePromptTemplate, ChatPromptTemplate, BasePromptTemplate
-from typing import Union, Optional
+from typing import Union, Optional, List
 from enum import Enum
 from config import Config
 
@@ -32,7 +33,7 @@ class WriteType(Enum):
     ERROR = "error" # Indicates a major issue or fault and probable inability to process a request, needs attention soon
     FATAL = "fatal" # The script can't progress or fail gracefully and has to forcefully shutdown, investigate asap 
     TRACE = "trace" # Most verbose and only used to get extremely detailed information about every step taken
-    
+    REFERENCES = "references" # List of sheets (besides the calling sheet) that were used to process a request
     
 
 class Common:
@@ -68,6 +69,8 @@ class Common:
                   error:Optional[Union[str,Exception]] = None,
                   ):
         
+        data = None
+        
         # Get UNIX timestamp in ms
         now = int(datetime.datetime.now().timestamp()) * 1000
         
@@ -82,6 +85,8 @@ class Common:
             # data = json.loads(message.to_json(None))
             # NOTE: There's currently an incompatibility: Pandas' df expects a `path_or_buf` kwarg, but PandasAI passes it as `path`, leading to a runtime error
             data = json.loads(message.dataframe.to_json(path_or_buf=None))
+        elif isinstance(message,set):
+            data = list(message)
         else:
             if message:
                 # Try to stringify it anyways
@@ -202,6 +207,32 @@ class Common:
             request_timeout = self.config.REQUEST_TIMEOUT,
             **kwargs
         )
+        
+    def to_flat_list(self, input) -> List[str]:
+        result = []
+        if isinstance(input, str):
+            try:
+                # Attempt to evaluate the string as a Python literal
+                evaluated_input = ast.literal_eval(input.strip())
+                # If successful and a list, recursively process
+                if isinstance(evaluated_input, list):
+                    return self.to_flat_list(evaluated_input)
+            except (ValueError, SyntaxError):
+                # If not a valid Python literal or list, split by commas
+                return [item.strip() for item in input.split(',')]
+        
+        elif isinstance(input, list):
+            for item in input:
+                # Recursively flatten if we encounter another list
+                if isinstance(item, list):
+                    result.extend(self.to_flat_list(item))
+                else:
+                    result.append(str(item).strip())
+            return result
+        else:
+            raise ValueError("Input must be a string or a list")
+
+        return result
      
 class Requests:
     def __init__(self, 
@@ -222,8 +253,6 @@ class Requests:
 
     def _make_request(self, method, endpoint, **kwargs):
         url = f'{self.config.SERVICE_API_URL}/{endpoint}'
-        a = self.session.headers.get('Authorization')
-        b = self.session.headers.get('x-api-key')
         response = self.session.request(method, url, **kwargs)
         response.raise_for_status()
         return response

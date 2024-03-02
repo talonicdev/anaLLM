@@ -78,6 +78,7 @@ class TableSetter:
         self.dataset_name = None
         self.destination_name = None
         self.column_description = None
+        self.user_id = None
 
         self.template = None
         self.examples = None
@@ -97,6 +98,7 @@ class TableSetter:
             sheet_data = response.json()
             self.dataset_name = f"{sheet_data['tableName']} - {sheet_data['sheetName']}"
             self.table = pd.DataFrame(sheet_data['sheet'])
+            self.user_id = sheet_data['userId']
         else:
             print("Error:", response.status_code, response.text)
 
@@ -216,12 +218,17 @@ class TableSetter:
         """
 
         # update types
-        self.column_description = [x.strip() for x in self.get_column_description()[2:].split(',')]
-
+        self.column_description = self.common.to_flat_list(self.get_column_description())
+        #self.column_description = [x.strip() for x in self.get_column_description()[2:].split(',')]
         if self.table.columns.tolist()[0] not in list(set(self.table.iloc[:, 0])):
-            column_names = str({i: e for i, e in enumerate(self.table.columns.values.tolist())})
+            #column_names = str({i: e for i, e in enumerate(self.table.columns.values.tolist())})
+            column_names = json.dumps({i: e for i, e in enumerate(self.table.columns.values.tolist())})
         else:
-            self.table.columns = column_names = self.column_description
+            #column_names = str({i: e for i, e in enumerate(self.column_description)})
+            column_names = json.dumps({i: e for i, e in enumerate(self.column_description)})
+            if len(self.table.columns) != len(self.column_description):
+                raise ValueError(f'Length mismatch: {self.table.columns} vs {self.column_description}')
+            self.table.columns = self.column_description
             self.table.loc[len(self.table.index)] = self.table.columns.tolist()
 
         self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_names'] = column_names
@@ -231,9 +238,9 @@ class TableSetter:
         Via Completion (gpt) estimates the meaning of each column
         :return: a list of column names
         """
-        name_prompt = (f'Describe every child list in this list: '
+        name_prompt = (f'The following is an array of arrays. Each child array contains sample values of a table column. Describe what each child array is about: '
                        f'{[self.table.iloc[:, i].tolist()[:np.min(np.array([10, len(self.table.index)]))] for i in range(len(self.table.columns))]} '
-                       f'in one or two words.')
+                       f'in one or two words and return it as an array of strings.')
 
         name_response = openai.completions.create(
             model="gpt-3.5-turbo-instruct",
@@ -387,9 +394,10 @@ class TableSetter:
                     extend_enum(WordContext, f'{key}', WordContext_dict[key])
 
     def load_into_vector_db(self):
-        me = MetaEngine(self.token)
+        me = MetaEngine(self.token,self.user_id)
 
-        meta_columns = [list(ast.literal_eval(self.meta_data_table['column_names'][i]).values()) for i in range(len(self.meta_data_table))]
+        #meta_columns = [list(ast.literal_eval(self.meta_data_table['column_names'][i]).values()) for i in range(len(self.meta_data_table))]
+        meta_columns = [list(json.loads(self.meta_data_table['column_names'][i]).values()) for i in range(len(self.meta_data_table))]
         table_indices = [self.meta_data_table['key'][i] for i in range(len(self.meta_data_table))]
 
         me.load_collection('talonic_collection')

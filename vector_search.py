@@ -24,6 +24,8 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
 from utils.conf import load_templates, get_template, load_datasets
+from common import Common, WriteType
+from config import Config
 
 
 os.environ['API_USER'] = config('USER')
@@ -40,7 +42,13 @@ logger = logging.getLogger(__name__)
 class BaseEmbedding:
 
     def __init__(self,
-                 token: str):
+                 token: str,
+                 user_id: str=None):
+        
+        self.config = Config()
+        self.common = Common(config=self.config)
+        self.user_id = user_id if user_id else None
+        
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
 
         proxy_host = "https://chroma-proxy.vhi.ai"
@@ -79,9 +87,17 @@ class BaseEmbedding:
         self.collection.add(
             embeddings=embeddings,
             documents=corpus,
+            metadatas=[{"sheetId": table_index, "column": c, "userId": self.user_id} for c in corpus],
+            ids=[f'{table_index}:{c}' for c in corpus]
+        )
+        '''
+        self.collection.add(
+            embeddings=embeddings,
+            documents=corpus,
             metadatas=[{f'{vec_num + i}': f'{(table_index, c)}'} for i, c in enumerate(corpus)],
             ids=[f'{vec_num + i}' for i in range(len(corpus))]
         )
+        '''
 
     def load_vec(self):
         self.collection_dict = self.collection.get()
@@ -90,15 +106,16 @@ class BaseEmbedding:
 
 
 class MetaEngine(BaseEmbedding):
-    def __init__(self, token: str):
-        super().__init__(token)
+    def __init__(self, token: str, user_id: str=None):
+        super().__init__(token,user_id)
 
     def find_semantic(self, query: str, n_results=100, threshold=0.3):
+        self.common.write(WriteType.DEBUG,f'Performing semantic search for "{query}"..')
         query_embedding = self.embedder.encode(query, convert_to_tensor=True)
         hits = util.semantic_search(query_embedding, self.corpus_embeddings, top_k=n_results)
         hits = hits[0]
 
-        column_dict = {ast.literal_eval(list(d.keys())[0]): ast.literal_eval(list(d.values())[0]) for d in self.collection_dict['metadatas']}
+        column_dict = {i: (d['sheetId'], d['column']) for i, d in enumerate(self.collection_dict['metadatas'])}
         similar_results = []
         logging.info(f"Similarity Result:")
         for hit in hits:

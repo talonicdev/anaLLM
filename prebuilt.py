@@ -102,17 +102,16 @@ class Extractor:
         # save file name for each table
 
     def call_table(self, sheet_id):
-        response = self.requests.get(f'sheet/{sheet_id}')
-        #base_url = 'https://backend.vhi.ai/service-api'
-        #headers = {'Authorization': f'Bearer {self.token}',
-        #           'x-api-key': f'{self.api_key}'}
-
-        #response = requests.get(f"{base_url}/sheet/{sheet_id}", headers=headers)
-        if response.status_code == 200:
-            sheet_data = response.json()
-            return pd.DataFrame(sheet_data['sheet'])
-        else:
-            self.common.write(WriteType.ERROR,response)
+        try:
+            response = self.requests.get(f'sheet/{sheet_id}')
+            if response.status_code == 200:
+                sheet_data = response.json()
+                return pd.DataFrame(sheet_data['sheet'])
+            else:
+                self.common.write(WriteType.ERROR,response)
+                return None
+        except:
+            return None
 
     def load_meta_table(self):
         result = self.requests.get('metadata')
@@ -166,7 +165,9 @@ class Extractor:
         response = self.common.invoke_chatOpenAI(llm,message)
         #response = llm(message)
 
-        self.keys_words = ast.literal_eval(response.content)
+        response_eval = ast.literal_eval(response.content)
+        self.keys_words = [val for val in response_eval if val.strip()]
+        self.common.write(WriteType.DEBUG,f'Keywords: {self.keys_words}')
 
     def select_tables(self):
         """
@@ -179,21 +180,31 @@ class Extractor:
 
         if me.collection.count() > 0:
             me.load_vec()
-            temp_res = []
-
-            for i, query in enumerate(self.keys_words):
+            
+            '''
+            # Intersection logic, returns tables that return results for *all* keywords
+            temp_res = None
+            for query in self.keys_words:
                 similar_results = me.find_semantic(query)
-                for res in similar_results:
-                    if i == 0:
-                        self.selected_table_keys.append(res[0])
-                    else:
-                        temp_res.append(res[0])
+                current_keys = {res[0] for res in similar_results}
+                if not current_keys:
+                    continue
+                if temp_res is None:
+                    temp_res = current_keys
+                else:
+                    temp_res &= current_keys
 
-                # to get an intersection of all values
-                if i != 0:
-                    self.selected_table_keys = [value for value in temp_res if value in self.selected_table_keys]
-
-        self.selected_table_keys = list(set(self.selected_table_keys))
+            if temp_res is not None:
+                self.selected_table_keys = list(temp_res) # Convert back to list
+            '''
+            temp_res = set()
+            for query in self.keys_words:
+                similar_results = me.find_semantic(query)
+                current_keys = {res[0] for res in similar_results}
+                temp_res |= current_keys
+            self.selected_table_keys = list(temp_res)
+            self.common.write(WriteType.DEBUG,f'Selected Table Keys: {self.selected_table_keys}')
+            
         self.get_tables()
 
     def get_tables(self):
@@ -202,10 +213,19 @@ class Extractor:
         """
         logging.info(f"SELECTED TABLES")
         pd.set_option('display.max_columns', None)
+        
+        retrieved_keys = []
 
         for key in self.selected_table_keys:
             table = self.call_table(key)
-            self.selected_tables.append(table)
+            if table is not None:
+                self.selected_tables.append(table)
+                retrieved_keys.append(key)
+            else:
+                self.common.write(WriteType.WARN,f'Selected sheet "{key}" could not be retrieved')
+        
+        # Log list of positively retrieved sheets as "sources"        
+        self.common.write(WriteType.REFERENCES,retrieved_keys)
 
     def run_request(self):
         """agent = Agent(self.selected_tables, config={"llm": self.llm}, memory_size=10)
@@ -233,13 +253,14 @@ class Extractor:
                                 },
                         memory_size=10)
         
-        self.response = self.common.chat_agent(self.dl,self.customer_request)
-        
-        if isinstance(self.response,(str,dict,pd.DataFrame,pandasai.smart_dataframe.SmartDataframe)):
+        self.response = self.common.chat_agent(self.dl,self.customer_request,"dataframe")
+        if isinstance(self.response,(pd.DataFrame,pandasai.smart_dataframe.SmartDataframe)):
             # Response is one of the expected data types
             self.common.write(WriteType.RESULT,self.response)
         else:
             self.common.write(WriteType.ERROR,self.response)
+            self.common.write(WriteType.ERROR,self.dl._lake.last_error)
+            #self.common.write(WriteType.DEBUG,self.dl._lake.logs)
 
         if self.make_plot:
             self.response.chat("Create a plot of your result.")

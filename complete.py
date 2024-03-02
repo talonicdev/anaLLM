@@ -206,13 +206,15 @@ class CompleteTable:
         add_words = []
         from pandas.api.types import is_string_dtype
         for col in exists_cols:
-            if (is_string_dtype(self.table[col])) and not (self.table[col].str.contains('.*[0-9].*', regex=True).any()):
-                add_words.extend(self.table[col].unique().tolist())
-
-                obj_elem = ', '.join(("'" + f"{e}" + "'" for e in self.table[col].unique().tolist()))
-                add_txt += f' The {col} are: {obj_elem}'
+            if (is_string_dtype(self.table[col])) and not (self.table[col].str.contains('^[0-9,\. ]+$', regex=True).any()):
+                unique_words = [word for word in self.table[col].unique().tolist() if word.strip()]
+                self.common.write(WriteType.DEBUG,f'Unique words for col "{col}": {unique_words}')
+                add_words.extend(unique_words)
+                if len(unique_words):
+                    obj_elem = ', '.join(("'" + f"{e}" + "'" for e in unique_words))
+                    add_txt += f' The {col} are: {obj_elem}'
+                    
         request += add_txt
-
         #df = self.table.drop(columns=empty_cols, inplace=False)
         df = self.table
 
