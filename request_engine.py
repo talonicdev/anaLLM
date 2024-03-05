@@ -63,13 +63,14 @@ class TableSetter:
         )
         # ... then instantiate Common and Requests with the Config instance..
         self.common = Common(config=self.config)
+        self.requests = Requests(config=self.config)
         
         self.new_collection = new_collection
         os.environ['OPENAI_API_KEY'] = openai_api_key
 
         self.meta_data_table = pd.DataFrame(
             columns=['key', 'table_name', 'creation_date', 'last_update', 'context',
-                     'column_names', 'description'])
+                     'column_names', 'column_descriptions', 'description'])
 
         self.llm = OpenAI(api_token=openai_api_key, engine="gpt-4-1106-preview")
 
@@ -180,7 +181,7 @@ class TableSetter:
         self.key = self.sheet_id
         
         self.meta_data_table.loc[len(self.meta_data_table.index)] = [
-            self.key, table_name, creation_date, last_update, *[None] * 3
+            self.key, table_name, creation_date, last_update, *[None] * 4
         ]
 
     def get_summary_template(self):
@@ -218,38 +219,48 @@ class TableSetter:
         """
 
         # update types
-        self.column_description = self.common.to_flat_list(self.get_column_description())
-        #self.column_description = [x.strip() for x in self.get_column_description()[2:].split(',')]
+        self.column_description = self.common.to_flat_list(self.get_column_description()) # list of string descriptions for each sheet column
+        column_descriptions = json.dumps({i: e for i, e in enumerate(self.column_description)}) # stringified JSON map ('{"0":"Col A","1":"Col B"}')
         if self.table.columns.tolist()[0] not in list(set(self.table.iloc[:, 0])):
-            #column_names = str({i: e for i, e in enumerate(self.table.columns.values.tolist())})
+            # First column name is not present in the list of unique values from the first column of the DataFrame
             column_names = json.dumps({i: e for i, e in enumerate(self.table.columns.values.tolist())})
         else:
-            #column_names = str({i: e for i, e in enumerate(self.column_description)})
-            column_names = json.dumps({i: e for i, e in enumerate(self.column_description)})
             if len(self.table.columns) != len(self.column_description):
-                raise ValueError(f'Length mismatch: {self.table.columns} vs {self.column_description}')
-            self.table.columns = self.column_description
-            self.table.loc[len(self.table.index)] = self.table.columns.tolist()
-
+                raise ValueError('Length mismatch: More column descriptions than columns')
+            column_names = column_descriptions # Let column descriptions be the column names
+            self.table.columns = self.column_description # Let column descriptions be the column names
+            self.table.loc[len(self.table.index)] = self.table.columns.tolist() # Append column names as a new row to the table (why?)
+            
+        # Set metadata table values
         self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_names'] = column_names
+        self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_descriptions'] = column_descriptions
 
     def get_column_description(self) -> str:
         """
         Via Completion (gpt) estimates the meaning of each column
         :return: a list of column names
         """
-        name_prompt = (f'The following is an array of arrays. Each child array contains sample values of a table column. Describe what each child array is about: '
-                       f'{[self.table.iloc[:, i].tolist()[:np.min(np.array([10, len(self.table.index)]))] for i in range(len(self.table.columns))]} '
-                       f'in one or two words and return it as an array of strings.')
-
-        name_response = openai.completions.create(
-            model="gpt-3.5-turbo-instruct",
-            prompt=name_prompt,
-            temperature=0.6,
-            max_tokens=150,
-        )
-
-        return name_response.choices[0].text
+        results = []
+        for column_name in self.table.columns:
+            batch = self.table[column_name].dropna().tolist()[:min(10, len(self.table[column_name]))]
+            other_cols = [col for col in self.table.columns if col != column_name][:10]
+            if len(other_cols) > 1:
+                other_cols_r = 'are "' + '", "'.join(other_cols[:-1]) + '", and "' + other_cols[-1] + '"'
+            else:
+                other_cols_r = f'are just "{other_cols[0]}"' if other_cols else 'do not exist'
+            # `batch` contains up to 10 items from any given column
+            prompt = (f"The following is a list of sample elements of a table column {column_name}:\n"
+                      f"{batch}\n"
+                      f"Other columns in the same table {other_cols_r}\n"
+                      "Describe what the column with the sample elements is about in one or two words.")
+            response = openai.completions.create(
+                model="gpt-3.5-turbo-instruct",
+                prompt=prompt,
+                temperature=0.6,
+                max_tokens=150,
+            )
+            results.append(response.choices[0].text.strip())
+        return results
 
     def unit_checker(self, idx: int):
         """
@@ -410,16 +421,18 @@ class TableSetter:
         """
         Saves metadata table as json and excel files.
         """
-        base_url = 'https://backend.vhi.ai/service-api'
-        headers = {'Authorization': f'Bearer {self.token}',
-                   'x-api-key': f'{self.api_key}'}
+        self.common.write(WriteType.WARN,"Saving..")
+        
         metadata = self.meta_data_table.to_json(path_or_buf=None)
         dict_meta = json.loads(metadata)
-        result = requests.patch(f"{base_url}/metadata", headers=headers, json=dict_meta)
-        if result.status_code == 200:
-            self.common.write(WriteType.RESULT,True)
-        '''x = result.status_code
-        y = result.json()'''
+        try:
+            result = self.requests.patch("metadata", json=dict_meta)
+            if result.status_code == 200 or result.status_code == 201:
+                self.common.write(WriteType.RESULT,True)
+            else:
+                self.common.write(WriteType.ERROR,f"Could not save metadata table: Status '{result.status_code}'")
+        except Exception as e:
+            self.common.write(WriteType.ERROR,"Could not save metadata",None,e)
 
 
 if __name__ == "__main__":

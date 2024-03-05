@@ -64,7 +64,7 @@ class Common:
     # Write any message or error to stdout
     def write(self,
                   messageType:WriteType,
-                  message:Union[str,dict,list,int,DataFrame,SmartDataframe],
+                  message:Union[str,dict,list,int,bool,DataFrame,SmartDataframe],
                   context:Optional[Union[str,bool]] = None,
                   error:Optional[Union[str,Exception]] = None,
                   ):
@@ -74,7 +74,7 @@ class Common:
         # Get UNIX timestamp in ms
         now = int(datetime.datetime.now().timestamp()) * 1000
         
-        if isinstance(message,(str,dict,list,int)):
+        if isinstance(message,(str,dict,list,int,bool)):
             # message is a simple type, can stringify as is
             data = message
         elif isinstance(message,DataFrame):
