@@ -1,7 +1,11 @@
 import sys
 import json
 import inspect
+import re
+import base64
+import os
 import ast
+from pathlib import Path
 import requests
 import datetime
 from pandas import DataFrame
@@ -40,13 +44,16 @@ class Common:
     def __init__(self, config: Optional[Config]=None):
         self.config = config if config else Config()
         self.tokens = tokens
+        self.path = Path(__file__).parent.resolve()
         
     # Get the total amount of tokens/prices
     def get_tokens(self):
         return self.tokens
     
-    def _get_type(self,data):
+    def _get_type(self,data,r_type=None):
         t = type(data).__name__
+        if r_type == 'plot':
+            return 'image'
         if t == 'str':
             return 'string'
         if t == 'bool':
@@ -66,32 +73,68 @@ class Common:
                   messageType:WriteType,
                   message:Union[str,dict,list,int,bool,DataFrame,SmartDataframe],
                   context:Optional[Union[str,bool]] = None,
-                  error:Optional[Union[str,Exception]] = None,
+                  error:Optional[Union[str,Exception]] = None
                   ):
         
         data = None
+        content = None
+        result_type = None
         
         # Get UNIX timestamp in ms
         now = int(datetime.datetime.now().timestamp()) * 1000
         
-        if isinstance(message,(str,dict,list,int,bool)):
+        
+        # Results are a dict containing the result content as well as its type (dataframe, string, number, plot)
+        if messageType == WriteType.RESULT:
+            if isinstance(message,dict):
+                content = message['data']
+                result_type = str(message['type'])
+            else:
+                content = message
+            if result_type == "plot":
+                # Result is a plot => read, validate, b64-encode and delete
+                content = str(content)
+                out_dir = str(self.path / 'output_plot')
+                if content.startswith(out_dir):
+                    try:
+                        with open(content, 'rb') as image_file:
+                            b64img = base64.b64encode(image_file.read()).decode('utf-8')
+                            os.remove(content)
+                            content = b64img
+                    except Exception as e:
+                        self.write(WriteType.ERROR,'Could not write Plot',True,e)
+                        return
+                else:
+                    self.write(WriteType.ERROR,f'Invalid Plot File Path: {content}',True)
+                    return
+            else:
+                # Result is string, number or (Smart)DataFrame
+                if isinstance(content,str):
+                    if str(self.path) in content:
+                        # Data contains directory path -> omit result
+                        self.write(WriteType.WARN,f"Message contains file path: '{content}'",True)
+                        return
+        else:
+            content = message
+                
+        if isinstance(content,(str,dict,list,int,bool)):
             # message is a simple type, can stringify as is
-            data = message
-        elif isinstance(message,DataFrame):
-            data = json.loads(message.to_json(path_or_buf=None))
-        elif isinstance(message,(SmartDataframe)):
+            data = content
+        elif isinstance(content,DataFrame):
+            data = json.loads(content.to_json(path_or_buf=None))
+        elif isinstance(content,(SmartDataframe)):
             # Message is a Pandas DataFrame or extended PandasAI SmartDataframe, 
             # invoke to_json without path to return JSON string, then parse it just to stringify it again later
-            # data = json.loads(message.to_json(None))
+            # data = json.loads(content.to_json(None))
             # NOTE: There's currently an incompatibility: Pandas' df expects a `path_or_buf` kwarg, but PandasAI passes it as `path`, leading to a runtime error
-            data = json.loads(message.dataframe.to_json(path_or_buf=None))
-        elif isinstance(message,set):
-            data = list(message)
+            data = json.loads(content.dataframe.to_json(path_or_buf=None))
+        elif isinstance(content,set):
+            data = list(content)
         else:
-            if message:
+            if content:
                 # Try to stringify it anyways
                 try:
-                    data = str(message)
+                    data = str(content)
                 except:
                     data = ''
                     pass
@@ -113,12 +156,15 @@ class Common:
                 # ctx is `<FunctionName>`
                 ctx = frame.f_code.co_name
         
-        log_entry = {'type': messageType.value, 'context': ctx, 'datatype': self._get_type(message), 'timestamp': now }
+        log_entry = {'type': messageType.value, 'context': ctx, 'datatype': self._get_type(content,result_type), 'timestamp': now }
 
         if data is not None:
             log_entry['data'] = data
         if error:
             log_entry['error'] = str(error)
+            
+        if result_type is not None:
+            log_entry['resulttype'] = result_type
 
         try:
             sys.stdout.write(f"{json.dumps(log_entry)}\n")
@@ -233,6 +279,20 @@ class Common:
             raise ValueError("Input must be a string or a list")
 
         return result
+    
+        
+    def pd_ai_is_expected_type(self, expected_type:str, response):
+        match expected_type:
+            case "dataframe":
+                return isinstance(response,(DataFrame,SmartDataframe))
+            case "string":
+                return isinstance(response,str)
+            case "plot":
+                return isinstance(response,str) and bool(re.match(r"^(\/[\w.-]+)+(/[\w.-]+)*$|^[^\s/]+(/[\w.-]+)*$", response))
+            case "number":
+                return isinstance(response,(int,float))
+            case _:
+                return False
      
 class Requests:
     def __init__(self, 

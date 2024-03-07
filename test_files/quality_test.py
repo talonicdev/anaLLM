@@ -89,7 +89,7 @@ def test_ask():
     extraction = Extractor(os.environ['KEY'],
                            token=token,
                            api_key=os.environ['API_KEY'],
-                           customer_request="Summarize the sales of Apparel products per city, but exclude all sales "
+                           users_prompt="Summarize the sales of Apparel products per city, but exclude all sales "
                            "that had an operating margin of less than 30%.", make_plot=True)
 
     extraction.get_meta_template()
@@ -110,11 +110,11 @@ def test_ask():
         "Analyze whether the employee performance has a relation to the frequency of termination."
     ]
 
-    '''for customer_request in requests:
+    '''for users_prompt in requests:
 
-        logging.info(f"customer request: {customer_request}")
+        logging.info(f"customer request: {users_prompt}")
 
-        extraction = Extractor(api_key, customer_request)
+        extraction = Extractor(api_key, users_prompt)
         extraction.get_meta_template()
         extraction.key_word_selection()
         extraction.select_tables()'''

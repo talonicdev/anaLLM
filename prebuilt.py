@@ -41,17 +41,21 @@ class Extractor:
                  openai_api_key: str,
                  api_key: str,
                  token: str,
-                 customer_request: str,
+                 users_prompt: str,
                  make_plot: bool = False,
                  selected_tables: List[str] = None,
+                 response_type: str = None,
+                 sheet_id: str = None,
                  debug=False):
 
         """
         Initialize a request object.
         :param openai_api_key: openai api key
-        :param customer_request: request from customer
+        :param users_prompt: request from customer
         :param make_plot: options: True / False - if for this specific request a plot be generated
         :param selected_tables: use only specific tables to obtain the answer to your request
+        :param response_type: request a specific kind of response (dataframe, string, number, plot)
+        :param sheet_id: use only one specific table to obtain the answer to your request
         """
 
         os.environ['OPENAI_API_KEY'] = openai_api_key
@@ -60,9 +64,11 @@ class Extractor:
         self.token = token
         self.debug = debug
         self.openai_api_key = openai_api_key
-        self.customer_request = customer_request
+        self.users_prompt = users_prompt
+        self.sheet_id = sheet_id if sheet_id else None
         self.make_plot = make_plot
         self.cwd = Path(__file__).parent.resolve()
+        self.response_type = response_type if response_type else "dataframe"
         
         # Initialize config first..
         self.config = Config(
@@ -115,11 +121,6 @@ class Extractor:
 
     def load_meta_table(self):
         result = self.requests.get('metadata')
-        #base_url = 'https://backend.vhi.ai/service-api'
-        #headers = {'Authorization': f'Bearer {self.token}',
-        #           'x-api-key': f'{self.api_key}'}
-
-        #result = requests.get(f"{base_url}/metadata", headers=headers)
 
         meta = result.content
         meta = meta.decode('utf-8')
@@ -158,7 +159,7 @@ class Extractor:
         """
         It selects useful key words from the given request
         """
-        prompt = self.prompt_template.format(question=self.customer_request)
+        prompt = self.prompt_template.format(question=self.users_prompt)
         prompt_template = ChatPromptTemplate.from_template(prompt)
         message = prompt_template.format_messages()
         llm = self.common.get_chatOpenAI_llm(temperature=0)
@@ -198,6 +199,8 @@ class Extractor:
                 self.selected_table_keys = list(temp_res) # Convert back to list
             '''
             temp_res = set()
+            if self.sheet_id:
+                temp_res.add(self.sheet_id)
             for query in self.keys_words:
                 similar_results = me.find_semantic(query)
                 current_keys = {res[0] for res in similar_results}
@@ -222,7 +225,7 @@ class Extractor:
                 self.selected_tables.append(table)
                 retrieved_keys.append(key)
             else:
-                self.common.write(WriteType.WARN,f'Selected sheet "{key}" could not be retrieved')
+                self.common.write(WriteType.DEBUG,f'Selected sheet "{key}" could not be retrieved')
         
         # Log list of positively retrieved sheets as "sources"        
         self.common.write(WriteType.REFERENCES,retrieved_keys)
@@ -230,7 +233,7 @@ class Extractor:
     def run_request(self):
         """agent = Agent(self.selected_tables, config={"llm": self.llm}, memory_size=10)
         # Chat with the agent
-        response = agent.chat(self.customer_request)
+        response = agent.chat(self.users_prompt)
         print(response)
         # Get Clarification Questions
         questions = agent.clarification_questions()
@@ -253,10 +256,16 @@ class Extractor:
                                 },
                         memory_size=10)
         
-        self.response = self.common.chat_agent(self.dl,self.customer_request,"dataframe")
-        if isinstance(self.response,(pd.DataFrame,pandasai.smart_dataframe.SmartDataframe)):
+        self.response = self.common.chat_agent(self.dl,self.users_prompt,self.response_type)
+        
+        if self.common.pd_ai_is_expected_type(self.response_type,self.response):
             # Response is one of the expected data types
-            self.common.write(WriteType.RESULT,self.response)
+            self.common.write(WriteType.RESULT,{'type':self.response_type,'data':self.response})
+            # TODO: The following doesn't work with SmartDataLakes, but it does with Agents. Try and change after update?
+            #if self.response_type == 'plot':
+            #    response_explanation = self.common.chat_agent(self.dl,"Explain the results of the generated plot in a couple of sentences","string")
+            #    if isinstance(response_explanation,str):
+            #        self.common.write(WriteType.RESULT,{'type':"string",'data':response_explanation})
         else:
             self.common.write(WriteType.ERROR,self.response)
             self.common.write(WriteType.ERROR,self.dl._lake.last_error)
@@ -272,7 +281,7 @@ class Extractor:
         # Uncomment to print the full SmartDataLake logs
         #sys.stdout.write(f"TYPE: LOGS\n: {pprint.pformat(self.dl._lake.logs)}")
 
-        self.clean()
+        #self.clean()
 
     def clean(self):
         """
@@ -385,8 +394,9 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--openai_api_key', help='OPENAI Key', required=True)
     parser.add_argument('-a', '--api_key', help='Backend Key', required=True)
     parser.add_argument('-token', '--token', required=True)
-    parser.add_argument('-sheet', '--sheet_id', required=True)
-    parser.add_argument('-r', '--customer_request', help='Task for AI.', required=True, nargs='+', dest='customer_request')
+    parser.add_argument('-r', '--users_prompt', help='Task for AI.', required=True, nargs='+', dest='users_prompt')
+    parser.add_argument('-sheet', '--sheet_id')
+    parser.add_argument('-response', '--response_type')
     parser.add_argument('--selected_tables', help='A list of table names that should be selected.')
     args = parser.parse_args()
 

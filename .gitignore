@@ -4,3 +4,5 @@ __pycache__
 output_plot
 output_tables
 _bak
+utils/WordContext.yaml
+utils/WordIndustries.yaml

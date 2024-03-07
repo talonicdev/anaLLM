@@ -219,9 +219,10 @@ class CompleteTable:
         df = self.table
 
         extraction = Extractor(openai_api_key=self.openai_api_key,
-                               customer_request=request,
+                               users_prompt=request,
                                api_key=self.api_key,
-                               token=self.token)
+                               token=self.token,
+                               response_type="dataframe")
 
         extraction.get_meta_template()
         extraction.key_word_selection()
@@ -238,6 +239,7 @@ if __name__ == "__main__":
     parser.add_argument('-token', '--token', required=True)
     parser.add_argument('-sheet', '--sheet_id', required=True)
     parser.add_argument('-query', '--users_prompt')
+    parser.add_argument('-response', '--response_type')
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('-p', '--table_path', help='Path of the table to be filled.')
     group.add_argument('-c', '--content', help='Table content as buffer / str to be filled.')
