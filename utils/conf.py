@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List
+from dateutil.parser import parse
 
 import yaml
 import pandas as pd
@@ -71,3 +71,90 @@ def load_datasets(subset: int = -1):
         table_list.append(table)
 
     return table_list
+
+
+def parse_string(elem: str) -> dict:
+    numbers = []
+    others = []
+    elem = elem.replace(" ", "")
+    sub_str = ''
+
+    if elem[0].isdigit():
+        current_elem_type = 'numeric'
+    else:
+        current_elem_type = 'str'
+
+    for i in range(len(elem)):
+        if elem[i].isdigit():
+            if current_elem_type == 'numeric':
+                sub_str += elem[i]
+                if len(elem) == i + 1:
+                    numbers.append(sub_str)
+            else:
+                others.append(sub_str)
+                sub_str = elem[i]
+                current_elem_type = 'numeric'
+                if len(elem) == i + 1:
+                    numbers.append(sub_str)
+
+        else:
+            if current_elem_type == 'str':
+                sub_str += elem[i]
+                if len(elem) == i + 1:
+                    others.append(sub_str)
+            else:
+                numbers.append(sub_str)
+                sub_str = elem[i]
+                current_elem_type = 'str'
+                if len(elem) == i + 1:
+                    others.append(sub_str)
+
+    return {'numbers_list': numbers, 'others_list': others}
+
+
+def parse_number(numbers_list: list, others_list: list):
+    separators = ['.', ',']
+    seps = []
+    unit = None
+    for e in others_list:
+        if e in separators:
+            seps.append(e)
+        else:
+            unit = e
+
+    if len(seps) > 1:
+        float_digit = float(''.join(numbers_list[: -1])) + float('0.' + numbers_list[-1])
+    elif len(seps) == 1:
+        if seps[0] == ',':
+            float_digit = float('.'.join(numbers_list))
+        else:
+            float_digit = float('.'.join(numbers_list))
+    else:
+        float_digit = int(numbers_list[0])
+
+    return float_digit, unit
+
+
+def is_date(string, fuzzy=False):
+    """
+    Return whether the string can be interpreted as a date.
+
+    :param string: str, string to check for date
+    :param fuzzy: bool, ignore unknown tokens in string if True
+    """
+    try:
+        parse(string, fuzzy=fuzzy)
+        return True
+
+    except ValueError:
+        return False
+
+
+def is_range(string):
+    if '-' in string:
+        start, end = string.split('-')
+        if len(start) > 0:
+            return True
+    else:
+        return False
+

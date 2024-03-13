@@ -22,7 +22,8 @@ from pandasai.llm.openai import OpenAI
 from langchain_community.chat_models import ChatOpenAI
 from langchain_core.prompts import FewShotChatMessagePromptTemplate, ChatPromptTemplate
 
-from utils.conf import load_templates, get_template, WordContext, WordException
+from utils.conf import load_templates, get_template, WordContext, WordException, parse_string, parse_number, is_date, \
+    is_range
 from vector_search import MetaEngine
 from config import Config
 from common import Common, Requests, WriteType
@@ -55,23 +56,13 @@ class TableSetter:
         self.token = token
         self.sheet_id = sheet_id
         self.openai_api_key = openai_api_key
-        # Initialize config first..
-        self.config = Config(
-            openai_api_key = openai_api_key,
-            token = token,
-            api_key = api_key
-        )
-        # ... then instantiate Common and Requests with the Config instance..
-        self.common = Common(config=self.config)
-        
-        self.new_collection = new_collection
-        os.environ['OPENAI_API_KEY'] = openai_api_key
+        self.debug = debug
 
-        self.meta_data_table = pd.DataFrame(
-            columns=['key', 'table_name', 'creation_date', 'last_update', 'context',
-                     'column_names', 'description'])
-
-        self.llm = OpenAI(api_token=openai_api_key, engine="gpt-4-1106-preview")
+        self.config = None
+        self.common = None
+        self.new_collection = None
+        self.meta_data_table = None
+        self.llm = None
 
         self.key = None
         self.table = None
@@ -84,13 +75,31 @@ class TableSetter:
         self.examples = None
         self.prefix = None
         self.suffix = None
-        self.debug = debug
 
         self.prompt_template = None
-
         self.terminate = False
 
+        self.init_attr(openai_api_key, token, api_key, new_collection, debug=debug)
         self.load_WordContext()
+
+    def init_attr(self, openai_api_key, token, api_key, new_collection, debug=False):
+        if not debug:
+            self.config = Config(
+                openai_api_key=openai_api_key,
+                token=token,
+                api_key=api_key
+            )
+            self.common = Common(config=self.config)
+            self.load_table()
+
+        self.new_collection = new_collection
+        os.environ['OPENAI_API_KEY'] = openai_api_key
+
+        self.meta_data_table = pd.DataFrame(
+            columns=['key', 'table_name', 'creation_date', 'last_update', 'context',
+                     'column_names', 'description', 'column_types'])
+
+        self.llm = OpenAI(api_token=openai_api_key, engine="gpt-4-1106-preview")
 
     def call_table(self, base_url, sheet_id, headers):
         response = requests.get(f"{base_url}/sheet/{sheet_id}", headers=headers)
@@ -106,20 +115,7 @@ class TableSetter:
         base_url = 'https://backend.vhi.ai/service-api'
         headers = {'Authorization': f'Bearer {self.token}',
                    'x-api-key': f'{self.api_key}'}
-
-        if self.debug:
-            response = requests.get(f"{base_url}/sheet-overview", headers=headers)
-            if response.status_code == 200:
-                all_sheets = response.json()
-                example_sheet_id = all_sheets[0]['sheetId']
-                self.call_table(base_url, example_sheet_id, headers)
-            elif response.status_code == 401:
-                raise ValueError("Invalid token.")
-            else:
-                print("Error:", response.status_code, response.text)
-
-        else:
-            self.call_table(base_url, self.sheet_id, headers)
+        self.call_table(base_url, self.sheet_id, headers)
 
     def update_table(self):
         """
@@ -128,8 +124,6 @@ class TableSetter:
         """
         date_time = datetime.fromtimestamp(datetime.timestamp(datetime.now()))
         last_update = date_time.strftime("%d-%m-%Y, %H:%M:%S")
-
-        self.load_table()
         self.table.loc[self.table['key'] == self.key, 'last_update'] = last_update
 
     def initialise_table(self):
@@ -144,10 +138,10 @@ class TableSetter:
         """
         self.columns_info()
         self.get_summary()
-        if self.terminate:
-            return
+        self.get_column_types()
         self.context()
-        self.load_into_vector_db()
+        if not self.debug:
+            self.load_into_vector_db()
         self.save_meta_data_table()
 
     def run(self, destination_name: str = None, table_key: str = None):
@@ -173,14 +167,13 @@ class TableSetter:
         Creates new entry in meta_data_table w/ key, table_name, creation_date, last_update
         """
         key = datetime.timestamp(datetime.now())
-        self.load_table()
         table_name = self.destination_name if self.destination_name else self.dataset_name
         date_time = datetime.fromtimestamp(key)
         last_update = creation_date = date_time.strftime("%d-%m-%Y, %H:%M:%S")
         self.key = self.sheet_id
         
         self.meta_data_table.loc[len(self.meta_data_table.index)] = [
-            self.key, table_name, creation_date, last_update, *[None] * 3
+            self.key, table_name, creation_date, last_update, *[None] * 4
         ]
 
     def get_summary_template(self):
@@ -217,39 +210,71 @@ class TableSetter:
         :return: column names and types
         """
 
-        # update types
-        self.column_description = self.common.to_flat_list(self.get_column_description())
-        #self.column_description = [x.strip() for x in self.get_column_description()[2:].split(',')]
-        if self.table.columns.tolist()[0] not in list(set(self.table.iloc[:, 0])):
-            #column_names = str({i: e for i, e in enumerate(self.table.columns.values.tolist())})
-            column_names = json.dumps({i: e for i, e in enumerate(self.table.columns.values.tolist())})
-        else:
-            #column_names = str({i: e for i, e in enumerate(self.column_description)})
-            column_names = json.dumps({i: e for i, e in enumerate(self.column_description)})
-            if len(self.table.columns) != len(self.column_description):
-                raise ValueError(f'Length mismatch: {self.table.columns} vs {self.column_description}')
-            self.table.columns = self.column_description
-            self.table.loc[len(self.table.index)] = self.table.columns.tolist()
+        column_description = self.get_column_description()
+        column_description = ast.literal_eval(column_description)
+        self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_names'] = {i: column_description[i] for i in range(len(column_description))}
 
-        self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_names'] = column_names
+    def get_column_types(self):
+        """
+        Sets the column types
+        """
+        x = self.table.infer_objects().dtypes
+        for i, col in enumerate(self.table.columns):
+            if x[col] == 'object':
+                if bool(re.search(r'\d', self.table[col].iloc[0])):
+                    if not is_date(self.table[col].iloc[0]):
+                        if not is_range(self.table[col].iloc[0]):
+                            val_units_df = self.table[col].apply(lambda x: parse_number(**parse_string(x)))
+                            df_new = pd.DataFrame.from_records(val_units_df.to_list(), columns=[f'{col}', 'unit'])
+                            self.table.drop(columns=col, inplace=True)
+                            self.table = pd.concat([self.table, df_new], axis=1)
+        col_types = self.table.infer_objects().dtypes
+        self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_types'] = col_types.to_dict()
 
     def get_column_description(self) -> str:
         """
         Via Completion (gpt) estimates the meaning of each column
         :return: a list of column names
         """
-        name_prompt = (f'The following is an array of arrays. Each child array contains sample values of a table column. Describe what each child array is about: '
-                       f'{[self.table.iloc[:, i].tolist()[:np.min(np.array([10, len(self.table.index)]))] for i in range(len(self.table.columns))]} '
-                       f'in one or two words and return it as an array of strings.')
 
-        name_response = openai.completions.create(
-            model="gpt-3.5-turbo-instruct",
-            prompt=name_prompt,
-            temperature=0.6,
-            max_tokens=150,
-        )
+        column_descriptions = []
+        table_cols = [self.random_selection(self.table.iloc[:, i].tolist(), np.min(np.array([10, len(self.table.index)]))) for i in range(len(self.table.columns))]
 
-        return name_response.choices[0].text
+        for i, col in enumerate(table_cols):
+            current_col_name = self.clean_results(self.table.columns.tolist()[i])
+            if len(current_col_name.split(' ')) <= 2:
+                task = (
+                    f'We have a data table that has some undefined column names, like "Unnamed: 0" or "Unnamed:'
+                    f'The following is an array that contains the cell values of a table column: {col}'
+                    f'This is the current column name: {current_col_name} '
+                    f'If the column name is undefined describe what this table column is about in one or two words otherwise choose the current column name.'
+                    f'As a context I give you a list of all current table names in order: {self.table.columns.tolist()}'
+                    f'Only return your result. No explanations! Example output: Customer Feedback')
+
+                name_response = openai.completions.create(
+                    model="gpt-3.5-turbo-instruct",
+                    prompt=task,
+                    temperature=0.2,
+                    max_tokens=150,
+                )
+
+                res = name_response.choices[0].text
+                column_descriptions.append(self.clean_results(res))
+            else:
+                column_descriptions.append(current_col_name)
+
+        return f'{column_descriptions}'
+
+    @staticmethod
+    def clean_results(result):
+        clean_str = re.sub('\s+', ' ', result)
+        clean_str = clean_str.strip()
+        clean_str = clean_str.replace('"', '')
+        return clean_str.replace('_', ' ')
+
+    @staticmethod
+    def random_selection(arr, n):
+        return np.random.choice(arr, n)
 
     def unit_checker(self, idx: int):
         """
@@ -410,20 +435,21 @@ class TableSetter:
         """
         Saves metadata table as json and excel files.
         """
-        base_url = 'https://backend.vhi.ai/service-api'
-        headers = {'Authorization': f'Bearer {self.token}',
-                   'x-api-key': f'{self.api_key}'}
-        metadata = self.meta_data_table.to_json(path_or_buf=None)
-        dict_meta = json.loads(metadata)
-        result = requests.patch(f"{base_url}/metadata", headers=headers, json=dict_meta)
-        if result.status_code == 200:
-            self.common.write(WriteType.RESULT,True)
-        '''x = result.status_code
-        y = result.json()'''
+        if not self.debug:
+            base_url = 'https://backend.vhi.ai/service-api'
+            headers = {'Authorization': f'Bearer {self.token}',
+                       'x-api-key': f'{self.api_key}'}
+            metadata = self.meta_data_table.to_json(path_or_buf=None)
+            dict_meta = json.loads(metadata)
+            result = requests.patch(f"{base_url}/metadata", headers=headers, json=dict_meta)
+            if result.status_code == 200:
+                self.common.write(WriteType.RESULT, True)
+        else:
+            self.meta_data_table.to_excel('/Users/stella/talonic/anaLLM2/anaLLM/datasets/meta_data_table.xlsx')
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='')
+    parser = argparse.ArgumentParser(description='Set a table.')
     parser.add_argument('-o', '--openai_api_key', help='OPENAI Key', required=True)
     parser.add_argument('-a', '--api_key', help='Backend Key', required=True)
     parser.add_argument('-token', '--token', required=True)

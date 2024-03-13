@@ -11,6 +11,7 @@ from decouple import config
 from complete import CompleteTable
 from prebuilt import Extractor
 from request_engine import TableSetter
+from utils.conf import parse_string, parse_number
 
 logging.basicConfig(filename='../prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
                     datefmt='%Y-%m-%d:%H:%M:%S',
@@ -118,8 +119,3 @@ def test_ask():
         extraction.get_meta_template()
         extraction.key_word_selection()
         extraction.select_tables()'''
-
-
-if __name__ == "__main__":
-    # test_table_setter()
-    test_complete_table()

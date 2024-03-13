@@ -40,7 +40,7 @@ class PredictMeta:
 
     def __init__(self,
                  openai_api_key: str,
-                 tables_dirs: str):
+                 tables: str):
 
         self.openai_api_key = openai_api_key
         self.tables_dir = Path(tables_dirs)
