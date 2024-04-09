@@ -4,8 +4,8 @@ import logging
 import argparse
 import sys
 from typing import List
-import glob, os.path
-import requests
+import glob
+import os.path
 import pprint
 
 from aenum import extend_enum
@@ -16,21 +16,18 @@ import pandasai
 
 from pathlib import Path
 from pandasai import SmartDatalake, Agent
-from pandasai.llm import OpenAI
-from pandasai.helpers.openai_info import get_openai_callback
-
-from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
-from vector_search import MetaEngine
-from utils.conf import load_templates, get_template, WordContext
+from vector_search import VectorSearch
+from utils.conf import load_templates, get_template, WordContext, format_dataframe, prep_table
 
 from common import Common, Requests, WriteType
 from config import Config
 
-logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-    datefmt='%Y-%m-%d:%H:%M:%S',
-    level=logging.DEBUG)
+logging.basicConfig(filename='logs/prebuilt.log',
+                    format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+                    datefmt='%Y-%m-%d:%H:%M:%S',
+                    level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
@@ -63,20 +60,16 @@ class Extractor:
         self.customer_request = customer_request
         self.make_plot = make_plot
         self.cwd = Path(__file__).parent.resolve()
-        
-        # Initialize config first..
+
         self.config = Config(
-            openai_api_key = openai_api_key,
-            token = token,
-            api_key = api_key
+            openai_api_key=openai_api_key,
+            token=token,
+            api_key=api_key
         )
-        # ... then instantiate Common and Requests with the Config instance..
+
         self.common = Common(config=self.config)
         self.requests = Requests(config=self.config)
-        # .. and finally get the LLM with appropriate config values
         self.llm = self.common.get_openAI_llm()
-
-        self.load_meta_table()
 
         if selected_tables:
             self.get_selected_tables(selected_tables)
@@ -93,22 +86,29 @@ class Extractor:
         self.keys_words = None
         self.response = None
         self.new_response = None
-
-        self.selected_table_keys = []
-        self.selected_tables = []
-
         self.dl = None
 
-        # save file name for each table
+        self.selected_tables = []
+
+        self.init_data()
+
+    def init_data(self):
+        if self.debug:
+            cwd = Path(__file__).resolve().parent
+            if os.path.isfile(f'{cwd}/test_files/test_data/quality_data/quality_meta.xlsx'):
+                self.meta_data_table = pd.read_excel(f'{cwd}/test_files/test_data/quality_data/quality_meta.xlsx',
+                                             index_col=None)
+        else:
+            self.load_meta_table()
 
     def call_table(self, sheet_id):
         try:
             response = self.requests.get(f'sheet/{sheet_id}')
             if response.status_code == 200:
                 sheet_data = response.json()
-                return pd.DataFrame(sheet_data['sheet'])
+                return pd.read_json(sheet_data['sheet'])
             else:
-                self.common.write(WriteType.ERROR,response)
+                self.common.write(WriteType.ERROR, response)
                 return None
         except:
             return None
@@ -166,46 +166,36 @@ class Extractor:
         It selects useful tables indices to answer the given request based on key words.
         Results are in selected_table_keys.
         """
+        name = 'test_collection' if self.debug else self.config.COLLECTION_NAME
+        vs = VectorSearch(self.token, debug=self.debug, collection_name=name)
+        table_keys = vs.find_tables(self.customer_request)
+        self.get_tables(table_keys)
 
-        me = MetaEngine(self.token)
-        me.load_collection(self.config.COLLECTION_NAME)
-
-        if me.collection.count() > 0:
-            me.load_vec()
-            temp_res = []
-
-            for i, query in enumerate(self.keys_words):
-                similar_results = me.find_semantic(query)
-                for res in similar_results:
-                    if i == 0:
-                        self.selected_table_keys.append(res[0])
-                    else:
-                        temp_res.append(res[0])
-
-                # to get an intersection of all values
-                if i != 0:
-                    self.selected_table_keys = [value for value in temp_res if value in self.selected_table_keys]
-
-        self.selected_table_keys = list(set(self.selected_table_keys))
-        self.get_tables()
-
-    def get_tables(self):
+    def get_tables(self, table_keys):
         """
         Loads the tables based on the selected tables indices. Results are in selected_tables.
         """
         logging.info(f"SELECTED TABLES")
-        retrieved_keys = []
+        # cwd for table path
 
-        for key in self.selected_table_keys:
-            table = self.call_table(key)
-            if table is not None:
+        for key in table_keys:
+            if self.debug:
+                cwd = Path(__file__).resolve().parent
+                table_path = self.meta_data_table[self.meta_data_table['key'] == key]['path'].tolist()[0]
+                p = f'{cwd}/test_files/test_data/quality_data/{table_path}'
+                table, table_side_data = format_dataframe(p)
+                # table = prep_table(table)
                 self.selected_tables.append(table)
-                retrieved_keys.append(key)
+
             else:
-                self.common.write(WriteType.WARN, f'Selected sheet "{key}" could not be retrieved')
-        
-        # Log list of positively retrieved sheets as "sources"        
-        self.common.write(WriteType.REFERENCES,retrieved_keys)
+                table = self.call_table(key)
+                if table is not None:
+                    self.selected_tables.append(table)
+
+                else:
+                    self.common.write(WriteType.WARN, f'Selected sheet "{key}" could not be retrieved')
+
+        self.common.write(WriteType.REFERENCES, table_keys)
 
     def run_request(self):
         """agent = Agent(self.selected_tables, config={"llm": self.llm}, memory_size=10)
@@ -232,8 +222,10 @@ class Extractor:
                                 "max_retries": self.config.MAX_RETRIES
                                 },
                         memory_size=10)
+
+        self.response = self.dl.chat(self.customer_request)
         
-        self.response = self.common.chat_agent(self.dl,self.customer_request, "dataframe")
+        # self.response = self.common.chat_agent(self.dl, self.customer_request, "dataframe")
         if isinstance(self.response, (pd.DataFrame, pandasai.smart_dataframe.SmartDataframe)):
             # Response is one of the expected data types
             self.common.write(WriteType.RESULT, self.response)

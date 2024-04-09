@@ -1,6 +1,6 @@
 aenum==3.1.15
 coverage==7.4.3
-chromadb==0.4.19
+chromadb==0.4.24
 fastapi==0.110.0
 langchain==0.1.12
 langchain_community==0.0.28

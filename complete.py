@@ -11,7 +11,6 @@ import pandas as pd
 from decouple import config
 
 from langchain_community.chat_models import ChatOpenAI
-from pandasai.llm import OpenAI
 
 from prebuilt import Extractor
 from utils.conf import load_templates, get_template
@@ -66,8 +65,8 @@ class CompleteTable:
         response = self.requests.get(f'sheet/{sheet_id}')
         if response.status_code == 200:
             sheet_data = response.json()
-            columns = sheet_data['sheet'].keys()
-            self.table = pd.DataFrame(sheet_data['sheet'], columns=columns)
+            # columns = sheet_data['sheet'].keys()
+            self.table = pd.read_json(sheet_data['sheet'])
             self.common.write(WriteType.DEBUG,self.table)
         else:
             self.common.write(WriteType.ERROR,{'sheet_id':sheet_id,'code':response.status_code,'text':response.text})
@@ -77,7 +76,7 @@ class CompleteTable:
             self.table = pd.read_csv(StringIO(self.content))
             self.table = self.table[1:]
         elif self.table_path:
-            self.table = pd.read_excel(self.table_path, header=1)
+            self.table = pd.read_excel(self.table_path, index_col=0)
         else:
             if self.debug:
                 # response is a list of dictionaries, where each dictionary is representative for a table
@@ -142,7 +141,7 @@ class CompleteTable:
             idx = exists_cols.index(original_cols[i])
             exists_cols.pop(idx)
 
-        chain = self.prompt_template | ChatOpenAI(temperature=0.6,
+        chain = self.prompt_template | ChatOpenAI(temperature=0.3,
                                                   openai_api_key=self.openai_api_key,
                                                   model_name="gpt-4-1106-preview")
 
@@ -218,14 +217,20 @@ class CompleteTable:
         #df = self.table.drop(columns=empty_cols, inplace=False)
         df = self.table
 
-        extraction = Extractor(openai_api_key=self.openai_api_key,
-                               customer_request=request,
-                               api_key=self.api_key,
-                               token=self.token)
+        if self.debug:
+            extraction = Extractor(os.environ['KEY'],
+                                   token='',
+                                   api_key=os.environ['API_KEY'],
+                                   customer_request=request,
+                                   debug=True,
+                                   make_plot=True)
+        else:
+            extraction = Extractor(openai_api_key=self.openai_api_key,
+                                   customer_request=request,
+                                   api_key=self.api_key,
+                                   token=self.token)
 
         extraction.get_meta_template()
-        extraction.key_word_selection()
-        extraction.keys_words += add_words
         extraction.select_tables()
         extraction.selected_tables.append(df)
         extraction.run_request()

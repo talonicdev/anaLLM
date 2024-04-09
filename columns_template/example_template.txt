@@ -1,0 +1,7 @@
+EXAMPLE:
+Background Info: We have a data table that has some undefined column names, like "Unnamed: 0" or "Unnamed:" because we forgot to give a proper name for that column. "Current_column_name" is one column name in that table. "Cell_Values" are the cell values in that column.
+Tasks: 1. Determine if the current column name is undefined. 2. Answer "True" if that column name is undefined, else answer "False".
+Rules: 1. Do NOT add any explanation to you answer.
+Current_column_name: {Current_column_name}
+Cell_Values: {Cell_Values}
+answer: {answer}

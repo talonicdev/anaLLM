@@ -1,22 +1,19 @@
 import os
 import ast
 import logging
+import chromadb
 from pathlib import Path
 from typing import List
-
-import copy
 
 import numpy as np
 import pandas as pd
 import torch
-import yaml
 
 from decouple import config
 from sklearn.cluster import MiniBatchKMeans
 from sklearn.cluster import AgglomerativeClustering
 from sklearn.metrics import silhouette_score
 
-import chromadb
 from chromadb.config import Settings
 
 from sentence_transformers import SentenceTransformer, util
@@ -32,41 +29,51 @@ os.environ['API_USER'] = config('USER')
 os.environ['OPENAI_API_KEY'] = config('KEY')
 
 
-logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-    datefmt='%Y-%m-%d:%H:%M:%S',
-    level=logging.DEBUG)
+logging.basicConfig(filename='logs/vector_search.log',
+                    format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+                    datefmt='%Y-%m-%d:%H:%M:%S',
+                    level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
 
-class BaseEmbedding:
+class MetaEngine:
 
     def __init__(self,
-                 token: str,
-                 user_id: str=None):
-        
+                 token: str = None,
+                 debug: bool = False):
+
+        self.token = token
+        self.debug = debug
         self.config = Config()
         self.common = Common(config=self.config)
-        self.user_id = user_id if user_id else None
-        
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
-
-        proxy_host = "https://chroma-proxy.vhi.ai"
-        proxy_port = 443
-
-        # Initialize the chroma client as an HTTP client
-        self.chroma_client = chromadb.HttpClient(
-            host=proxy_host,
-            port=proxy_port,
-            settings=Settings(
-                chroma_client_auth_provider="chromadb.auth.token.TokenAuthClientProvider",
-                chroma_client_auth_credentials=token
-            )
-        )
-
         self.corpus_embeddings = torch.zeros(size=(1, 0))
-        self.collection_dict = None
+
+        self.tables = None
         self.collection = None
+        self.chroma_client = None
+        self.collection_dict = None
+        self.table_probabilities = None
+
+        self.init_client()
+
+    def init_client(self):
+        if not self.debug:
+            proxy_host = "https://chroma-proxy.vhi.ai"
+            proxy_port = 443
+
+            self.chroma_client = chromadb.HttpClient(
+                host=proxy_host,
+                port=proxy_port,
+                settings=Settings(
+                    chroma_client_auth_provider="chromadb.auth.token.TokenAuthClientProvider",
+                    chroma_client_auth_credentials=self.token
+                )
+            )
+        else:
+            cwd = Path(__file__).resolve().parents[0]
+            self.chroma_client = chromadb.PersistentClient(path=f"{cwd}/test_files/chromadb")
 
     def create_new_collection(self, collection_name):
         self.collection = self.chroma_client.get_or_create_collection(name=collection_name)
@@ -74,278 +81,91 @@ class BaseEmbedding:
     def load_collection(self, collection_name):
         self.collection = self.chroma_client.get_or_create_collection(name=collection_name)
 
-    def embed_new_vec(self, vec_num, table_index, corpus):
+    def embed_new_vec(self, vec_num, sheet_id, corpus):
         new_embed = self.embedder.encode(corpus, convert_to_tensor=True, show_progress_bar=True)
         if self.corpus_embeddings.nelement() == 0:
             self.corpus_embeddings = new_embed
         else:
             self.corpus_embeddings = torch.cat((self.corpus_embeddings, new_embed))
 
-        self.save_vec(vec_num, table_index, new_embed.tolist(), corpus)
+        self.save_vec(vec_num, sheet_id, new_embed.tolist(), corpus)
 
-    def save_vec(self, vec_num, table_index, embeddings, corpus):
+    def save_vec(self, vec_num, sheet_id, embeddings, corpus):
+        # collection.upsert(...)
+
         self.collection.add(
             embeddings=embeddings,
             documents=corpus,
-            metadatas=[{"sheetId": table_index, "column": c, "userId": self.user_id} for c in corpus],
-            ids=[f'{table_index}:{c}' for c in corpus]
+            metadatas=[{f'{vec_num + i}': f'{[sheet_id, c]}', 'sheet_id': sheet_id} for i, c in enumerate(corpus)],
+            ids=[f'{sheet_id}_{i}' for i in range(len(corpus))]
         )
-        '''
-        self.collection.add(
-            embeddings=embeddings,
-            documents=corpus,
-            metadatas=[{f'{vec_num + i}': f'{(table_index, c)}'} for i, c in enumerate(corpus)],
-            ids=[f'{vec_num + i}' for i in range(len(corpus))]
-        )
-        '''
 
     def load_vec(self):
         self.collection_dict = self.collection.get()
         dataset = self.collection.get(include=['embeddings'])
         self.corpus_embeddings = torch.FloatTensor(dataset['embeddings'])
 
+    def find_semantic(self, queries: List[str], n_results=1000):
+        column_dict = {int(k): v for d in self.collection_dict['metadatas'] for k, v in d.items()}
+        self.tables = list(set([ast.literal_eval(column_dict[d])[0] for d in column_dict.keys()]))
+        self.table_probabilities = np.zeros(len(self.tables))
 
-class MetaEngine(BaseEmbedding):
-    def __init__(self, token: str, user_id: str=None):
-        super().__init__(token,user_id)
+        for query in queries:
+            self.common.write(WriteType.DEBUG, f'Performing semantic search for "{query}"..')
+            table_probability = {t: [] for t in self.tables}
 
-    def find_semantic(self, query: str, n_results=100, threshold=0.3):
-        self.common.write(WriteType.DEBUG,f'Performing semantic search for "{query}"..')
-        query_embedding = self.embedder.encode(query, convert_to_tensor=True)
-        hits = util.semantic_search(query_embedding, self.corpus_embeddings, top_k=n_results)
-        hits = hits[0]
+            query_embedding = self.embedder.encode(query, convert_to_tensor=True)
+            hits = util.semantic_search(query_embedding, self.corpus_embeddings, top_k=n_results)
+            hits = hits[0]
 
-        column_dict = {i: (d['sheetId'], d['column']) for i, d in enumerate(self.collection_dict['metadatas'])}
-        similar_results = []
-        logging.info(f"Similarity Result:")
-        for hit in hits:
-            if hit['score'] >= threshold:
-                similar_results.append(column_dict[hit['corpus_id']])
-                logging.info(f"Element: {column_dict[hit['corpus_id']]} - Score: {hit['score']}")
+            for idx, hit in enumerate(hits):
+                table_probability[ast.literal_eval(column_dict[hit['corpus_id']])[0]].append(hit['score'])
 
-        return similar_results
+            table_scores_list = list(table_probability.values())
+            table_scores = np.zeros([len(table_scores_list), len(max(table_scores_list, key=lambda x: len(x)))])
+            for i, j in enumerate(table_scores_list):
+                table_scores[i][0:len(j)] = j
 
-    def show_find_cos(self, corpus, query: str, n_results=5, threshold=0.3):
-        top_k = n_results
-        query_embedding = self.embedder.encode(query, convert_to_tensor=True)
+            # options: table_max_scores = np.mean(table_scores, axis=1) or table_max_scores = np.max(table_scores, axis=1)
 
-        cos_scores = util.cos_sim(query_embedding, self.corpus_embeddings)[0]
-        top_results = torch.topk(cos_scores, k=top_k)
+            table_max_scores = np.mean(table_scores, axis=1)
+            self.table_probabilities += table_max_scores / len(queries)
 
-        print("\n\n======================\n\n")
-        print("COSINE")
-        print("Query:", query)
-        print(f"\nTop {n_results} most similar sentences in corpus:\n")
-
-        for score, idx in zip(top_results[0], top_results[1]):
-            if score >= threshold:
-                print(corpus[idx], "(Score: {:.4f})".format(score))
-
-    def show_find_sem(self, corpus, query: str, n_results=5, threshold=0.3):
-        query_embedding = self.embedder.encode(query, convert_to_tensor=True)
-        hits = util.semantic_search(query_embedding, self.corpus_embeddings, top_k=n_results)
-        hits = hits[0]
-
-        print("\n\n======================\n\n")
-        print("SEMANTIC")
-        print("Query:", query)
-        print(f"\nTop {n_results} most similar sentences in corpus:\n")
-        for hit in hits:
-            if hit['score'] >= threshold:
-                print(corpus[hit['corpus_id']], "(Score: {:.4f})".format(hit['score']))
+        indices = [list(self.table_probabilities).index(p) for p in self.table_probabilities if p > 0.3]
+        return [self.tables[idx] for idx in indices]
 
 
-class ContextCluster(BaseEmbedding):
+class VectorSearch:
+    def __init__(self,
+                 token: str = None,
+                 debug: bool = False,
+                 reload: bool = False,
+                 collection_name: str = 'talonic_collection'):
 
-    def __init__(self, collection_name: str):
-        super().__init__(collection_name)
+        self.debug = debug
+        self.reload = reload
+        self.collection_name = collection_name if not debug else 'test_collection'
+        self.me = MetaEngine(token=token, debug=True)
+        self.initialize()
+        self.me.load_collection(self.collection_name)
 
-        self.score = -1
-        self.scores_list = []
-        self.group_index = None
-        self.prompt_template = None
+    def initialize(self):
+        if self.reload:
+            self.me.load_collection('test_collection')
+            if self.me.collection.count() > 0:
+                self.me.chroma_client.delete_collection(name="test_collection")
 
-        self.template = None
-        self.prefix = None
-        self.suffix = None
-        self.examples = None
+    def embed_context(self, vec_num: int = 0, meta_data: pd.DataFrame = None):
+        for idx, row in meta_data.iterrows():
+            keywords = ast.literal_eval(row['keywords'])
+            all_keywords = keywords + [row['table_name']]
+            k = ' - '.join(all_keywords)
+            column_names = ast.literal_eval(row['column_names'])
+            concat = [' - '.join([k, c]) for c in column_names]
+            self.me.embed_new_vec(vec_num, sheet_id=row['key'], corpus=concat)
+            vec_num += len(concat)
 
-        self.columns = None
-        self.original_col = None
-        self.original_embeds = None
-
-        self.tables: List[pd.DataFrame] = []
-
-        self.batch_size = 3
-        self.max_iter = 5
-
-        self.params = {}
-
-    def get_clusters(self, corpus: List[str]):
-        groups = {}
-
-        for i in range(len(corpus)):
-            if self.group_index[i] in list(groups.keys()):
-                groups[self.group_index[i]].append(corpus[i])
-            else:
-                groups[self.group_index[i]] = [corpus[i]]
-
-        print(groups)
-        return groups
-
-    def kmeans_clusters(self, n_cluster=7):
-        kmeans = MiniBatchKMeans(n_clusters=n_cluster,
-                                 reassignment_ratio=0,
-                                 random_state=0,
-                                 batch_size=self.batch_size,
-                                 max_iter=self.max_iter,
-                                 n_init="auto").fit(self.corpus_embeddings)
-
-        self.group_index = kmeans.fit_predict(self.corpus_embeddings)
-
-    def agglomerative_clusters(self):
-        clustering = AgglomerativeClustering().fit(self.corpus_embeddings)
-        self.group_index = clustering.labels_
-
-    def silhouette_score(self):
-        """
-        best value = 1
-        worst value = -1
-        :return:
-        """
-        self.score = silhouette_score(self.corpus_embeddings, self.group_index)
-        print("\nSCORE: ")
-        print(self.score)
-
-    def get_meta_template(self):
-        self.template, self.prefix, self.suffix, self.examples = load_templates('cluster_template')
-        self.prompt_template = get_template(self.examples,
-                                            self.prefix,
-                                            self.suffix)
-
-    def predict_topic(self, columns):
-        prompt = self.prompt_template.format(data=columns)
-        prompt_template = ChatPromptTemplate.from_template(prompt)
-        message = prompt_template.format_messages()
-
-        llm = ChatOpenAI(temperature=0, openai_api_key=config('KEY'))
-        response = llm(message)
-
-        return response
-
-    def find_centers(self):
-        # find best cluster representations
-        pass
-
-    def init_data(self):
-        self.tables = load_datasets(subset=3)
-        self.columns = [df.columns.values.tolist() for df in self.tables]
-
-        vec_num = 0
-
-        for col, table_index in zip(self.columns, [i for i in range(len(self.columns))]):
-            self.embed_new_vec(vec_num, table_index, col)
-            vec_num += len(col)
-
-        self.columns = [col for col_df in self.columns for col in col_df]
-        self.original_col = copy.deepcopy(self.columns)
-        self.original_embeds = copy.deepcopy(self.corpus_embeddings)
-
-    def find_best_topic(self, round=1, n_clusters=3):
-        print(f"\n\n\n========= ROUND: {round} =========")
-        print(f"\nNumber Cluster: {n_clusters}")
-        print(f"Max Iter: {self.max_iter}")
-        print(f"Batch Size: {self.batch_size}")
-        print(f"Calculations: {self.batch_size * self.max_iter}\n")
-
-        self.kmeans_clusters(n_clusters)
-        groups = self.get_clusters(self.columns)
-        self.silhouette_score()
-        self.scores_list.append(self.score)
-
-        if (self.score > 0.5) or (n_clusters == 10):
-            print(groups)
-            return
-
-        n_clusters += 1
-
-        for num in groups.keys():
-            print("\n---")
-            if len(groups[num]) > 2:
-                topic = self.predict_topic(groups[num])
-                print(f"column size : {len(self.columns)}")
-                if topic.content not in self.columns:
-                    print(f"\ndata size: {len(groups[num])}")
-                    print(topic.content)
-                    self.columns += [topic.content]
-                    print("Embedding new topic ...")
-                    topic_embedding = self.embedder.encode(topic.content, convert_to_tensor=True)
-                    topic_embedding = topic_embedding.expand(1, topic_embedding.shape[0])
-                    self.corpus_embeddings = torch.cat((self.corpus_embeddings, topic_embedding))
-                    print("Done")
-            else:
-                print(f"\nSkip cluster number: {num} of total {n_clusters}")
-
-        self.find_best_topic(round, n_clusters)
-
-    def run(self):
-        self.get_meta_template()
-        self.init_data()
-
-        t = np.linspace(7, 15, 15)
-
-        batch = lambda x: x * (np.cos(np.pi/4) - np.sin(4 * x) * np.sin(np.pi/4))
-        iter = lambda x: x * (np.sin(np.pi/4) + np.sin(4 * x) + np.cos(np.pi/4))
-
-        inter_vals = iter(t)
-        batch_vals = batch(t)
-
-        count = 0
-
-        for i, b in zip(inter_vals, batch_vals):
-
-            count += 1
-
-            if np.floor(b) <= 10 and np.floor(i) <= 25:
-                self.batch_size = int(np.floor(b)) if int(np.floor(b)) > 3 else 3
-                self.max_iter = int(np.floor(i)) if int(np.floor(i)) > 5 else 5
-
-                self.scores_list = []
-                self.columns = copy.deepcopy(self.original_col)
-                self.corpus_embeddings = copy.deepcopy(self.original_embeds)
-                self.find_best_topic(round=count)
-
-                best_score = np.max(np.array(self.scores_list))
-                n_clusters = self.scores_list.index(best_score) + 3
-
-                self.params[best_score] = {'batch': self.batch_size, 'iter': self.max_iter, 'n_cluster': n_clusters}
-
-        with open('./parameters.yaml', 'w', ) as f:
-            yaml.dump(self.params, f, sort_keys=False)
-
-
-if __name__ == "__main__":
-
-    '''cluster = ContextCluster('test_collection')
-    cluster.run()'''
-
-    columns1 = ['Retailer', 'Retailer ID', 'Invoice Date', 'Region', 'State', 'City', 'Product', 'sex',
-                'Price per Unit', 'Units Sold', 'Total Sales', 'Operating Profit', 'Operating Margin', 'Sales Method']
-    columns2 = ['User ID', 'Subscription Type', 'Monthly Revenue', 'Join Date', 'Last Payment Date', 'Country', 'Age',
-                'Gender', 'Device', 'Plan Duration']
-    columns3 = ['TV Ad Budget ($)', 'Radio Ad Budget ($)', 'Newspaper Ad Budget ($)', 'Sales ($)', 'gender']
-    corpus = columns1 + columns2 + columns3
-
-    query = 'females'
-    me = MetaEngine('test_collection')
-    vec_num = 0
-
-    for col, table_index in zip([columns1, columns2, columns3], [1111, 2222, 3333]):
-        me.embed_new_vec(vec_num, table_index, col)
-        vec_num += len(col)
-
-    me.load_vec()
-    similar_results = me.find_semantic(query)
-    print(similar_results)
-    # me.show_find_cos(corpus, query)
-    # me.show_find_sem(corpus, query)
+    def find_tables(self, request: str):
+        self.me.load_vec()
+        table_keys = self.me.find_semantic([request])
+        return table_keys

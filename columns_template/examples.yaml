@@ -1,0 +1,29 @@
+example1:
+  Current_column_name: '-'
+  Cell_Values: '[[''Sandra'', ''Michael'', ''Jean'', ''Samuel'']]'
+  answer: 'True'
+
+example2:
+  Current_column_name: 'customer address'
+  Cell_Values: '[[''Friedrichstr. 32'', ''Sonnenallee 34d'', ''Karl-Marx-Allee 304'', ''Grünau 78'']]'
+  answer: 'False'
+
+example3:
+  Current_column_name: 'some'
+  Cell_Values: '[[''12.04.2023'', ''01.05.2020'', ''26.09.2006'', ''19.02.2017'']]'
+  answer: 'True'
+
+example4:
+  Current_column_name: 'Visiting Date'
+  Cell_Values: '[[''12.04.2023'', ''01.05.2020'', ''26.09.2006'', ''19.02.2017'']]'
+  answer: 'False'
+
+example5:
+  Current_column_name: 'Customer Names'
+  Cell_Values: '[[''Sandra'', ''Michael'', ''Jean'', ''Samuel'']]'
+  answer: 'False'
+
+example6:
+  Current_column_name: 'unnamed(4)'
+  Cell_Values: '[[''34,67 €'', ''634,12 €'', ''90,05 €'', ''24,15 €'']]'
+  answer: 'True'
