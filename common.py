@@ -26,6 +26,7 @@ tokens = {
     'total_cost': 0
 }
 
+
 class WriteType(Enum):
     # Exotic main types that are necessary for the operation and *always* expected by the script runner
     TOKENS = "tokens" # Token count used for a given call, { prompt_tokens, completion_tokens, total_cost }
@@ -45,7 +46,7 @@ class ProcessErrType(Enum):
     
 
 class Common:
-    def __init__(self, config: Optional[Config]=None):
+    def __init__(self, config: Optional[Config] = None):
         self.config = config if config else Config()
         self.tokens = tokens
         self.path = Path(__file__).parent.resolve()
@@ -64,7 +65,7 @@ class Common:
             return 'boolean'
         if t == 'int':
             return 'number'
-        if t in ['DataFrame','SmartDataframe']:
+        if t in ['DataFrame', 'SmartDataframe']:
             return 'sheet'
         if t == 'list':
             return 'array'
@@ -143,9 +144,8 @@ class Common:
                     data = str(content)
                 except:
                     data = ''
-                    pass
             
-        if isinstance(context,str):
+        if isinstance(context, str):
             # Context is whatever the string says it is
             ctx = context
         else:
@@ -181,19 +181,19 @@ class Common:
      
     # Internal function to handle OpenAICallback, used for token counting
     def _handle_callback(self,
-                        context:Optional[str],
-                        cb:OpenAICallbackHandler):
+                         context: Optional[str],
+                         cb: OpenAICallbackHandler):
         if cb and cb.prompt_tokens:
             self.tokens['prompt_tokens'] += cb.prompt_tokens
             self.tokens['completion_tokens'] += cb.completion_tokens
             self.tokens['total_cost'] += cb.total_cost
-            self.write(WriteType.TOKENS,{'prompt':cb.prompt_tokens,'completion':cb.completion_tokens,'cost':cb.total_cost},context)
+            self.write(WriteType.TOKENS, {'prompt': cb.prompt_tokens,'completion':cb.completion_tokens,'cost':cb.total_cost},context)
         else:
             #self.write(WriteType.ERROR,f'No openai_callback: {cb}',context)
             pass
             
     def chat_agent(self,
-                   agent:SmartDatalake,
+                   agent: SmartDatalake,
                    *args):
         with get_openai_callback() as cb:
             try:
@@ -204,9 +204,7 @@ class Common:
             self._handle_callback(True,cb)
             return result
         
-    def invoke_chatOpenAI(self,
-                   llm:ChatOpenAI,
-                   *args):
+    def invoke_chatOpenAI(self, llm: ChatOpenAI, *args):
         
         # No callback here :(
         with get_openai_callback() as cb:
@@ -220,16 +218,14 @@ class Common:
                 self.write(WriteType.ERROR,'LLM Invocation error',True,e)
                 raise e
         
-    def invoke_openAI(self,
-                   llm:OpenAI,
-                   *args):
+    def invoke_openAI(self, llm: OpenAI, *args):
         with get_openai_callback() as cb:
             try:
                 result = llm(*args)
             except Exception as e:
                 self.write(WriteType.ERROR,'LLM Invocation error',True,e)
                 
-            self._handle_callback(True,cb)
+            self._handle_callback(True, cb)
             return result
         
     def invoke_chain(self,

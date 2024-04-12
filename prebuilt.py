@@ -4,8 +4,8 @@ import logging
 import argparse
 import sys
 from typing import List
-import glob, os.path
-import requests
+import glob
+import os.path
 import pprint
 
 from aenum import extend_enum
@@ -16,21 +16,18 @@ import pandasai
 
 from pathlib import Path
 from pandasai import SmartDatalake, Agent
-from pandasai.llm import OpenAI
-from pandasai.helpers.openai_info import get_openai_callback
-
-from langchain.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
-from vector_search import MetaEngine
-from utils.conf import load_templates, get_template, WordContext
+from vector_search import VectorSearch
+from utils.conf import load_templates, get_template, WordContext, format_dataframe, prep_table
 
 from common import Common, Requests, WriteType, ProcessErrType
 from config import Config
 
-logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-    datefmt='%Y-%m-%d:%H:%M:%S',
-    level=logging.DEBUG)
+logging.basicConfig(filename='logs/prebuilt.log',
+                    format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+                    datefmt='%Y-%m-%d:%H:%M:%S',
+                    level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +38,7 @@ class Extractor:
                  openai_api_key: str,
                  api_key: str,
                  token: str,
-                 users_prompt: str,
+                 customer_request: str,
                  make_plot: bool = False,
                  selected_tables: List[str] = None,
                  response_type: str = None,
@@ -51,7 +48,7 @@ class Extractor:
         """
         Initialize a request object.
         :param openai_api_key: openai api key
-        :param users_prompt: request from customer
+        :param customer_request: request from customer
         :param make_plot: options: True / False - if for this specific request a plot be generated
         :param selected_tables: use only specific tables to obtain the answer to your request
         :param response_type: request a specific kind of response (dataframe, string, number, plot)
@@ -64,7 +61,7 @@ class Extractor:
         self.token = token
         self.debug = debug
         self.openai_api_key = openai_api_key
-        self.users_prompt = users_prompt
+        self.customer_request = customer_request
         self.sheet_id = sheet_id if sheet_id else None
         self.make_plot = make_plot
         self.cwd = Path(__file__).parent.resolve()
@@ -72,17 +69,14 @@ class Extractor:
         
         # Initialize config first..
         self.config = Config(
-            openai_api_key = openai_api_key,
-            token = token,
-            api_key = api_key
+            openai_api_key=openai_api_key,
+            token=token,
+            api_key=api_key
         )
-        # ... then instantiate Common and Requests with the Config instance..
+
         self.common = Common(config=self.config)
         self.requests = Requests(config=self.config)
-        # .. and finally get the LLM with appropriate config values
         self.llm = self.common.get_openAI_llm()
-
-        self.load_meta_table()
 
         if selected_tables:
             self.get_selected_tables(selected_tables)
@@ -99,29 +93,35 @@ class Extractor:
         self.keys_words = None
         self.response = None
         self.new_response = None
-
-        self.selected_table_keys = []
-        self.selected_tables = []
-
         self.dl = None
 
-        # save file name for each table
+        self.selected_tables = []
+
+        self.init_data()
+
+    def init_data(self):
+        if self.debug:
+            cwd = Path(__file__).resolve().parent
+            if os.path.isfile(f'{cwd}/test_files/test_data/quality_data/quality_meta.xlsx'):
+                self.meta_data_table = pd.read_excel(f'{cwd}/test_files/test_data/quality_data/quality_meta.xlsx',
+                                             index_col=None)
+        else:
+            self.load_meta_table()
 
     def call_table(self, sheet_id):
         try:
             response = self.requests.get(f'sheet/{sheet_id}')
             if response.status_code == 200:
                 sheet_data = response.json()
-                return pd.DataFrame(sheet_data['sheet'])
+                return pd.read_json(sheet_data['sheet'])
             else:
-                self.common.write(WriteType.ERROR,response)
+                self.common.write(WriteType.ERROR, response)
                 return None
         except:
             return None
 
     def load_meta_table(self):
         result = self.requests.get('metadata')
-
         meta = result.content
         meta = meta.decode('utf-8')
         import json
@@ -163,72 +163,49 @@ class Extractor:
         prompt_template = ChatPromptTemplate.from_template(prompt)
         message = prompt_template.format_messages()
         llm = self.common.get_chatOpenAI_llm(temperature=0)
-        response = self.common.invoke_chatOpenAI(llm,message)
-        #response = llm(message)
+        response = self.common.invoke_chatOpenAI(llm, message)
 
         response_eval = ast.literal_eval(response.content)
         self.keys_words = [val for val in response_eval if val.strip()]
-        self.common.write(WriteType.DEBUG,f'Keywords: {self.keys_words}')
+        self.common.write(WriteType.DEBUG, f'Keywords: {self.keys_words}')
 
     def select_tables(self):
         """
         It selects useful tables indices to answer the given request based on key words.
         Results are in selected_table_keys.
         """
+        name = 'test_collection' if self.debug else self.config.COLLECTION_NAME
+        vs = VectorSearch(self.token, debug=self.debug, collection_name=name)
+        table_keys = vs.find_tables(self.customer_request)
+        self.get_tables(table_keys)
 
-        me = MetaEngine(self.token)
-        me.load_collection(self.config.COLLECTION_NAME)
-
-        if me.collection.count() > 0:
-            me.load_vec()
-            
-            '''
-            # Intersection logic, returns tables that return results for *all* keywords
-            temp_res = None
-            for query in self.keys_words:
-                similar_results = me.find_semantic(query)
-                current_keys = {res[0] for res in similar_results}
-                if not current_keys:
-                    continue
-                if temp_res is None:
-                    temp_res = current_keys
-                else:
-                    temp_res &= current_keys
-
-            if temp_res is not None:
-                self.selected_table_keys = list(temp_res) # Convert back to list
-            '''
-            temp_res = set()
-            if self.sheet_id:
-                temp_res.add(self.sheet_id)
-            for query in self.keys_words:
-                similar_results = me.find_semantic(query)
-                current_keys = {res[0] for res in similar_results}
-                temp_res |= current_keys
-            self.selected_table_keys = list(temp_res)
-            self.common.write(WriteType.DEBUG,f'Selected Table Keys: {self.selected_table_keys}')
-            
-        self.get_tables()
-
-    def get_tables(self):
+    def get_tables(self, table_keys):
         """
         Loads the tables based on the selected tables indices. Results are in selected_tables.
         """
         logging.info(f"SELECTED TABLES")
-        pd.set_option('display.max_columns', None)
-        
+        # cwd for table path
         retrieved_keys = []
-
-        for key in self.selected_table_keys:
-            table = self.call_table(key)
-            if table is not None:
-                self.selected_tables.append(table)
-                retrieved_keys.append(key)
-            else:
-                self.common.write(WriteType.DEBUG,f'Selected sheet "{key}" could not be retrieved')
         
-        # Log list of positively retrieved sheets as "sources"        
-        self.common.write(WriteType.REFERENCES,retrieved_keys)
+        for key in table_keys:
+            if self.debug:
+                cwd = Path(__file__).resolve().parent
+                table_path = self.meta_data_table[self.meta_data_table['key'] == key]['path'].tolist()[0]
+                p = f'{cwd}/test_files/test_data/quality_data/{table_path}'
+                table, table_side_data = format_dataframe(p)
+                # table = prep_table(table)
+                self.selected_tables.append(table)
+
+            else:
+                table = self.call_table(key)
+                if table is not None:
+                    self.selected_tables.append(table)
+                    retrieved_keys.append(key)
+
+                else:
+                    self.common.write(WriteType.DEBUG, f'Selected sheet "{key}" could not be retrieved')
+
+        self.common.write(WriteType.REFERENCES, retrieved_keys)
 
     def run_request(self):
         """agent = Agent(self.selected_tables, config={"llm": self.llm}, memory_size=10)
@@ -261,7 +238,8 @@ class Extractor:
                                 },
                         memory_size=10)
         
-        self.response = self.common.chat_agent(self.dl,self.users_prompt,self.response_type)
+        #self.response = self.common.chat_agent(self.dl,self.users_prompt,self.response_type)
+        self.response = self.dl.chat(self.customer_request)
         
         if self.common.pd_ai_is_expected_type(self.response_type,self.response):
             # Response is one of the expected data types
@@ -272,14 +250,13 @@ class Extractor:
             #    if isinstance(response_explanation,str):
             #        self.common.write(WriteType.RESULT,{'type':"string",'data':response_explanation})
         else:
-            self.common.write(WriteType.ERROR,self.response)
-            self.common.write(WriteType.ERROR,self.dl._lake.last_error)
+            self.common.write(WriteType.ERROR, self.response)
+            self.common.write(WriteType.ERROR, self.dl._lake.last_error)
             #self.common.write(WriteType.DEBUG,self.dl._lake.logs)
 
         if self.make_plot:
             self.response.chat("Create a plot of your result.")
-            
-        
+
         if self.config.LOG_LEVEL == 'trace':
             sys.stdout.write(f"TYPE: LOGS\n: {pprint.pformat(self.dl._lake.logs)}")
             
@@ -395,11 +372,11 @@ class Extractor:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='')
+    parser = argparse.ArgumentParser(description='Extractor module')
     parser.add_argument('-o', '--openai_api_key', help='OPENAI Key', required=True)
     parser.add_argument('-a', '--api_key', help='Backend Key', required=True)
     parser.add_argument('-token', '--token', required=True)
-    parser.add_argument('-r', '--users_prompt', help='Task for AI.', required=True, nargs='+', dest='users_prompt')
+    parser.add_argument('-r', '--customer_request', help='Task for AI.', required=True, nargs='+', dest='customer_request')
     parser.add_argument('-sheet', '--sheet_id')
     parser.add_argument('-response', '--response_type')
     parser.add_argument('--selected_tables', help='A list of table names that should be selected.')
