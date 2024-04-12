@@ -31,13 +31,17 @@ class WriteType(Enum):
     TOKENS = "tokens" # Token count used for a given call, { prompt_tokens, completion_tokens, total_cost }
     MILESTONE = "milestone" # Major status progress, used later to provide real-time progress updates to customers
     RESULT = "result" # The expected result of the script process (i.e. table, charts, text message, acknowledgement, ..)
+    REFERENCES = "references" # List of sheets (besides the calling sheet) that were used to process a request
+    PROCESSERR = "process_error" # Indicates that a request is handled as expected, but couldn't be successfully processed anyways (e.g. due to no sheets matching the query)
     # Default log levels, output dependent on log level
     DEBUG = "debug" # Most commonly used to track general status and nominal events during development
     WARN = "warn" # Suggests a potential issue or fault, but doesn't require immediate attention
     ERROR = "error" # Indicates a major issue or fault and probable inability to process a request, needs attention soon
     FATAL = "fatal" # The script can't progress or fail gracefully and has to forcefully shutdown, investigate asap 
     TRACE = "trace" # Most verbose and only used to get extremely detailed information about every step taken
-    REFERENCES = "references" # List of sheets (besides the calling sheet) that were used to process a request
+    
+class ProcessErrType(Enum):
+    NO_MATCHING_SHEETS = "no_matching_sheets" # 
     
 
 class Common:
@@ -71,7 +75,7 @@ class Common:
     # Write any message or error to stdout
     def write(self,
                   messageType:WriteType,
-                  message:Union[str,dict,list,int,bool,DataFrame,SmartDataframe],
+                  message:Union[str,dict,list,int,bool,DataFrame,SmartDataframe,Enum],
                   context:Optional[Union[str,bool]] = None,
                   error:Optional[Union[str,Exception]] = None
                   ):
@@ -122,6 +126,8 @@ class Common:
             data = content
         elif isinstance(content,DataFrame):
             data = json.loads(content.to_json(path_or_buf=None))
+        elif isinstance(content,Enum):
+            data = content.value
         elif isinstance(content,(SmartDataframe)):
             # Message is a Pandas DataFrame or extended PandasAI SmartDataframe, 
             # invoke to_json without path to return JSON string, then parse it just to stringify it again later
@@ -279,7 +285,6 @@ class Common:
             raise ValueError("Input must be a string or a list")
 
         return result
-    
         
     def pd_ai_is_expected_type(self, expected_type:str, response):
         match expected_type:

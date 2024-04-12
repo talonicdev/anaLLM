@@ -33,6 +33,7 @@ class CompleteTable:
                  content: str = None,
                  table_path: str = None,
                  users_prompt: str = None,
+                 response_type: str = "dataframe",
                  debug: bool = False,
                  ):
 
@@ -52,6 +53,7 @@ class CompleteTable:
         self.token = token
         self.debug = debug
         self.users_prompt = users_prompt
+        self.response_type = response_type
 
         self.template = None
         self.examples = None
@@ -222,7 +224,7 @@ class CompleteTable:
                                users_prompt=request,
                                api_key=self.api_key,
                                token=self.token,
-                               response_type="dataframe")
+                               response_type=self.response_type)
 
         extraction.get_meta_template()
         extraction.key_word_selection()

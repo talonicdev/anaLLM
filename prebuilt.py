@@ -25,7 +25,7 @@ from langchain.prompts import ChatPromptTemplate
 from vector_search import MetaEngine
 from utils.conf import load_templates, get_template, WordContext
 
-from common import Common, Requests, WriteType
+from common import Common, Requests, WriteType, ProcessErrType
 from config import Config
 
 logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
@@ -241,6 +241,11 @@ class Extractor:
             print(question)
         response = agent.explain()
         print(response)"""
+        
+        if not len(self.selected_tables):
+            # No sheets to load -> No Agent to initialize -> Fail gracefully due to no matching sheets to work with
+            self.common.write(WriteType.PROCESSERR,ProcessErrType.NO_MATCHING_SHEETS)
+            raise SystemExit(0)
 
         self.dl = Agent(self.selected_tables,
                         config={"save_charts": True,

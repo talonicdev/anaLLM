@@ -55,14 +55,18 @@ class BaseEmbedding:
         proxy_port = 443
 
         # Initialize the chroma client as an HTTP client
-        self.chroma_client = chromadb.HttpClient(
-            host=proxy_host,
-            port=proxy_port,
-            settings=Settings(
-                chroma_client_auth_provider="chromadb.auth.token.TokenAuthClientProvider",
-                chroma_client_auth_credentials=token
+        try:
+            self.chroma_client = chromadb.HttpClient(
+                host=proxy_host,
+                port=proxy_port,
+                settings=Settings(
+                    chroma_client_auth_provider="chromadb.auth.token.TokenAuthClientProvider",
+                    chroma_client_auth_credentials=token
+                )
             )
-        )
+        except Exception as e:
+            self.common.write(WriteType.ERROR,f"Could not connect to '{token}'",None,e)
+            raise SystemExit
 
         self.corpus_embeddings = torch.zeros(size=(1, 0))
         self.collection_dict = None
@@ -114,8 +118,13 @@ class MetaEngine(BaseEmbedding):
         query_embedding = self.embedder.encode(query, convert_to_tensor=True)
         hits = util.semantic_search(query_embedding, self.corpus_embeddings, top_k=n_results)
         hits = hits[0]
-
-        column_dict = {i: (d['sheetId'], d['column']) for i, d in enumerate(self.collection_dict['metadatas'])}
+        column_dict = {}
+        for i, d in enumerate(self.collection_dict['metadatas']):
+            try:
+                column_dict[i] = (d['sheetId'], d['column'])
+            except:
+                pass
+        #column_dict = {i: (d['sheetId'], d['column']) for i, d in enumerate(self.collection_dict['metadatas'])}
         similar_results = []
         logging.info(f"Similarity Result:")
         for hit in hits:

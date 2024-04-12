@@ -98,7 +98,8 @@ class TableSetter:
         if response.status_code == 200:
             sheet_data = response.json()
             self.dataset_name = f"{sheet_data['tableName']} - {sheet_data['sheetName']}"
-            self.table = pd.DataFrame(sheet_data['sheet'])
+            columns = sheet_data['sheet'].keys()
+            self.table = pd.DataFrame(sheet_data['sheet'], columns=columns)
             self.user_id = sheet_data['userId']
         else:
             print("Error:", response.status_code, response.text)
@@ -241,9 +242,16 @@ class TableSetter:
         :return: a list of column names
         """
         results = []
-        for column_name in self.table.columns:
+        
+        if self.table.empty:
+            column_names = []
+        else:
+            # If the DataFrame has columns, use them, otherwise use the first row as headers
+            column_names = self.table.columns if len(self.table.columns) else self.table.iloc[0]
+            
+        for column_name in column_names:
             batch = self.table[column_name].dropna().tolist()[:min(10, len(self.table[column_name]))]
-            other_cols = [col for col in self.table.columns if col != column_name][:10]
+            other_cols = [col for col in column_names if col != column_name][:10]
             if len(other_cols) > 1:
                 other_cols_r = 'are "' + '", "'.join(other_cols[:-1]) + '", and "' + other_cols[-1] + '"'
             else:
@@ -421,7 +429,6 @@ class TableSetter:
         """
         Saves metadata table as json and excel files.
         """
-        self.common.write(WriteType.WARN,"Saving..")
         
         metadata = self.meta_data_table.to_json(path_or_buf=None)
         dict_meta = json.loads(metadata)
