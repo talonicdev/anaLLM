@@ -1,6 +1,5 @@
 import ast
 import os
-import logging
 import argparse
 import sys
 from typing import List
@@ -11,6 +10,7 @@ import pprint
 from aenum import extend_enum
 
 import pandas as pd
+import pandasai.constants
 import yaml
 import pandasai
 
@@ -21,16 +21,13 @@ from langchain.prompts import ChatPromptTemplate
 from vector_search import VectorSearch
 from utils.conf import load_templates, get_template, WordContext, format_dataframe, prep_table
 
-from common import Common, Requests, WriteType, ProcessErrType
+from common import Common, Requests, WriteType, ProcessErrType, get_logger
 from config import Config
 
-logging.basicConfig(filename='logs/prebuilt.log',
-                    format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-                    datefmt='%Y-%m-%d:%H:%M:%S',
-                    level=logging.DEBUG)
+logger = get_logger(__name__)
 
-logger = logging.getLogger(__name__)
-
+# Add exceptions to PandasAI's whitelisted builtin imports
+pandasai.constants.WHITELISTED_BUILTINS.extend(["Exception","ValueError","NameError","TypeError","ArithmeticError","ZeroDivisionError","KeyError","FloatingPointError","AttributeError","OverflowError"])
 
 class Extractor:
 
@@ -41,7 +38,7 @@ class Extractor:
                  customer_request: str,
                  make_plot: bool = False,
                  selected_tables: List[str] = None,
-                 response_type: str = None,
+                 response_type: str = 'string',
                  sheet_id: str = None,
                  debug=False):
 
@@ -113,8 +110,10 @@ class Extractor:
             response = self.requests.get(f'sheet/{sheet_id}')
             if response.status_code == 200:
                 sheet_data = response.json()
-                return pd.read_json(sheet_data['sheet'])
+                return pd.DataFrame(sheet_data['sheet'])
+                #return pd.read_json(sheet_data['sheet'])
             else:
+                print(response)
                 self.common.write(WriteType.ERROR, response)
                 return None
         except:
@@ -127,7 +126,6 @@ class Extractor:
         import json
         meta_dict = json.loads(meta)
         del meta_dict['userId']
-        del meta_dict['column_type']
         del meta_dict['scopes']
         self.meta_data_table = pd.DataFrame(meta_dict)
 
@@ -159,7 +157,7 @@ class Extractor:
         """
         It selects useful key words from the given request
         """
-        prompt = self.prompt_template.format(question=self.users_prompt)
+        prompt = self.prompt_template.format(question=self.customer_request)
         prompt_template = ChatPromptTemplate.from_template(prompt)
         message = prompt_template.format_messages()
         llm = self.common.get_chatOpenAI_llm(temperature=0)
@@ -175,7 +173,7 @@ class Extractor:
         Results are in selected_table_keys.
         """
         name = 'test_collection' if self.debug else self.config.COLLECTION_NAME
-        vs = VectorSearch(self.token, debug=self.debug, collection_name=name)
+        vs = VectorSearch(self.token, debug=self.debug, collection_name=name, sheet_id=self.sheet_id)
         table_keys = vs.find_tables(self.customer_request)
         self.get_tables(table_keys)
 
@@ -183,7 +181,7 @@ class Extractor:
         """
         Loads the tables based on the selected tables indices. Results are in selected_tables.
         """
-        logging.info(f"SELECTED TABLES")
+        #logging.info(f"SELECTED TABLES")
         # cwd for table path
         retrieved_keys = []
         
@@ -205,12 +203,12 @@ class Extractor:
                 else:
                     self.common.write(WriteType.DEBUG, f'Selected sheet "{key}" could not be retrieved')
 
-        self.common.write(WriteType.REFERENCES, retrieved_keys)
+        #self.common.write(WriteType.REFERENCES, retrieved_keys)
 
     def run_request(self):
         """agent = Agent(self.selected_tables, config={"llm": self.llm}, memory_size=10)
         # Chat with the agent
-        response = agent.chat(self.users_prompt)
+        response = agent.chat(self.customer_request)
         print(response)
         # Get Clarification Questions
         questions = agent.clarification_questions()
@@ -228,9 +226,9 @@ class Extractor:
                         config={"save_charts": True,
                                 "save_charts_path": f"{self.cwd}/output_plot",
                                 "llm": self.llm,
-                                "save_logs": True,
+                                "save_logs": self.debug,
                                 "enable_cache": False,
-                                "verbose": True,
+                                "verbose": self.debug,
                                 "llm_options": {
                                     "request_timeout": self.config.REQUEST_TIMEOUT
                                 },
@@ -238,8 +236,11 @@ class Extractor:
                                 },
                         memory_size=10)
         
-        #self.response = self.common.chat_agent(self.dl,self.users_prompt,self.response_type)
-        self.response = self.dl.chat(self.customer_request)
+        #self.response = self.common.chat_agent(self.dl,self.customer_request,self.response_type)
+        #print(f"Request is: {self.customer_request}")
+        extended_request = f"{self.customer_request}\n**Important:** Always expect invalid data types or missing values for individual cells and catch exceptions and/or check with 'isinstance()'."
+        self.response = self.dl.chat(extended_request, self.response_type)
+        self.dl
         
         if self.common.pd_ai_is_expected_type(self.response_type,self.response):
             # Response is one of the expected data types
@@ -249,16 +250,24 @@ class Extractor:
             #    response_explanation = self.common.chat_agent(self.dl,"Explain the results of the generated plot in a couple of sentences","string")
             #    if isinstance(response_explanation,str):
             #        self.common.write(WriteType.RESULT,{'type':"string",'data':response_explanation})
+            #explanation = self.dl.explain()
+            #explanation = self.dl.chat("Does your previous response sufficiently fulfill the query with relevant and meaningful results?")
+            #explanation = self.dl.chat("Explain and analyze the plot in a few short sentences.","string")
+            
+            #self.common.write(WriteType.RESULT,{'type':'string','data':explanation})
+            #self.common.write(WriteType.RESULT,{'type':'string','data':self.dl.context.memory.get_messages()})
         else:
-            self.common.write(WriteType.ERROR, self.response)
-            self.common.write(WriteType.ERROR, self.dl._lake.last_error)
+            res_type = type(self.response).__name__
+            self.common.write(WriteType.ERROR,f'Expected type {self.response_type}, got {res_type}')
+            self.common.write(WriteType.ERROR,self.response)
+            self.common.write(WriteType.ERROR, self.dl.last_error)
             #self.common.write(WriteType.DEBUG,self.dl._lake.logs)
 
-        if self.make_plot:
-            self.response.chat("Create a plot of your result.")
+        #if self.make_plot:
+        #    self.response.chat("Create a plot of your result.")
 
-        if self.config.LOG_LEVEL == 'trace':
-            sys.stdout.write(f"TYPE: LOGS\n: {pprint.pformat(self.dl._lake.logs)}")
+        #if self.config.LOG_LEVEL == 'trace':
+        #    sys.stdout.write(f"TYPE: LOGS\n: {pprint.pformat(self.dl._lake.logs)}")
             
         # Uncomment to print the full SmartDataLake logs
         #sys.stdout.write(f"TYPE: LOGS\n: {pprint.pformat(self.dl._lake.logs)}")
@@ -376,7 +385,7 @@ if __name__ == "__main__":
     parser.add_argument('-o', '--openai_api_key', help='OPENAI Key', required=True)
     parser.add_argument('-a', '--api_key', help='Backend Key', required=True)
     parser.add_argument('-token', '--token', required=True)
-    parser.add_argument('-r', '--customer_request', help='Task for AI.', required=True, nargs='+', dest='customer_request')
+    parser.add_argument('-r', '--customer_request', help='Task for AI.', required=True)
     parser.add_argument('-sheet', '--sheet_id')
     parser.add_argument('-response', '--response_type')
     parser.add_argument('--selected_tables', help='A list of table names that should be selected.')
@@ -387,4 +396,4 @@ if __name__ == "__main__":
     extraction.key_word_selection()
     extraction.select_tables()
     extraction.run_request()
-    extraction.clean()
+    #extraction.clean()

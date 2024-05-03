@@ -9,16 +9,11 @@ from complete import CompleteTable
 from meta_data_prediction import PredictMeta
 from prebuilt import Extractor
 from request_engine import TableSetter
-
-logging.basicConfig(filename='../endpoints.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-                    datefmt='%Y-%m-%d:%H:%M:%S',
-                    level=logging.DEBUG)
+from common import get_logger
 
 logger = logging.getLogger(__name__)
 
-os.environ['API_USER'] = config('USER')
-os.environ['OPENAI_API_KEY'] = config('KEY')
-os.environ['API_KEY'] = config('API_KEY')
+logger = get_logger(__name__)
 
 
 app = FastAPI()

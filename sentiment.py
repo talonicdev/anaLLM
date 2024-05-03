@@ -5,8 +5,6 @@ import wandb
 from decouple import config
 from openai import OpenAI
 
-os.environ['API_USER'] = config('USER')
-os.environ['OPENAI_API_KEY'] = config('KEY')
 
 
 def run_rating(feedback):

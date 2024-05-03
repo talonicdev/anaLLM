@@ -12,16 +12,13 @@ from decouple import config
 from prebuilt import Extractor
 from request_engine import TableSetter
 
-logging.basicConfig(filename='prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+logging.basicConfig(filename='./logs/prebuilt.log', format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
     datefmt='%Y-%m-%d:%H:%M:%S',
     level=logging.DEBUG)
 
 logger = logging.getLogger(__name__)
 
 logging.info("Meta data prediction:")
-
-os.environ['API_USER'] = config('USER')
-os.environ['OPENAI_API_KEY'] = config('KEY')
 
 
 class PredictMeta:

@@ -5,6 +5,8 @@ import re
 import base64
 import os
 import ast
+import logging
+import numpy as np
 from pathlib import Path
 import requests
 import datetime
@@ -44,6 +46,46 @@ class WriteType(Enum):
 class ProcessErrType(Enum):
     NO_MATCHING_SHEETS = "no_matching_sheets" # 
     
+    
+def get_logger(filename:str, level:Optional[Enum]=logging):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    log_dir = os.path.join(script_dir, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+    log_file_path = os.path.join(log_dir, f"{filename}.log")
+    logging.basicConfig(filename=log_file_path,
+                        format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
+                        datefmt='%Y-%m-%d:%H:%M:%S',
+                        level=level)
+    return logging.getLogger(filename)
+
+def get_logger(name, level=logging.DEBUG):
+
+    # Determine the directory of the current script to place log files accordingly
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    log_dir = os.path.join(script_dir, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Full path for the log file
+    log_file_path = os.path.join(log_dir, f"{name}.log")
+
+    # Create a logger
+    logger = logging.getLogger(name)
+    logger.setLevel(level)
+
+    # Create file handler which logs even debug messages
+    fh = logging.FileHandler(log_file_path)
+    fh.setLevel(level)
+
+    # Create formatter and add it to the handlers
+    formatter = logging.Formatter('%(asctime)s,%(msecs)03d %(levelname)-8s [%(name)s:%(lineno)d] %(message)s',
+                                  datefmt='%Y-%m-%d:%H:%M:%S')
+    fh.setFormatter(formatter)
+
+    # Add the handlers to the logger
+    logger.addHandler(fh)
+
+    return logger
+    
 
 class Common:
     def __init__(self, config: Optional[Config] = None):
@@ -65,6 +107,10 @@ class Common:
             return 'boolean'
         if t == 'int':
             return 'number'
+        if t == 'float':
+            return 'number'
+        if t == 'float64':
+            return 'number'
         if t in ['DataFrame', 'SmartDataframe']:
             return 'sheet'
         if t == 'list':
@@ -76,7 +122,7 @@ class Common:
     # Write any message or error to stdout
     def write(self,
                   messageType:WriteType,
-                  message:Union[str,dict,list,int,bool,DataFrame,SmartDataframe,Enum],
+                  message:Union[str,dict,list,int,float,bool,DataFrame,SmartDataframe,Enum,np.number],
                   context:Optional[Union[str,bool]] = None,
                   error:Optional[Union[str,Exception]] = None
                   ):
@@ -122,11 +168,16 @@ class Common:
         else:
             content = message
                 
-        if isinstance(content,(str,dict,list,int,bool)):
+        if isinstance(content,(np.generic,np.number)):
+            content = content.item()
+        if isinstance(content,np.ndarray):
+            content = content.tolist()
+            
+        if isinstance(content,(str,dict,list,int,bool,float,np.number)):
             # message is a simple type, can stringify as is
             data = content
         elif isinstance(content,DataFrame):
-            data = json.loads(content.to_json(path_or_buf=None))
+            data = json.loads(content.to_json(path_or_buf=None, orient="index"))
         elif isinstance(content,Enum):
             data = content.value
         elif isinstance(content,(SmartDataframe)):
@@ -291,7 +342,7 @@ class Common:
             case "plot":
                 return isinstance(response,str) and bool(re.match(r"^(\/[\w.-]+)+(/[\w.-]+)*$|^[^\s/]+(/[\w.-]+)*$", response))
             case "number":
-                return isinstance(response,(int,float))
+                return isinstance(response,(int,float,np.number))
             case _:
                 return False
      

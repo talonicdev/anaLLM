@@ -18,9 +18,6 @@ from utils.conf import load_templates, get_template
 from config import Config
 from common import Common, Requests, WriteType
 
-os.environ['API_USER'] = config('USER')
-os.environ['OPENAI_API_KEY'] = config('KEY')
-
 
 class CompleteTable:
 
@@ -31,7 +28,7 @@ class CompleteTable:
                  sheet_id: str = None,
                  content: str = None,
                  table_path: str = None,
-                 users_prompt: str = None,
+                 customer_request: str = None,
                  response_type: str = "dataframe",
                  debug: bool = False,
                  ):
@@ -51,7 +48,7 @@ class CompleteTable:
         self.api_key = api_key
         self.token = token
         self.debug = debug
-        self.users_prompt = users_prompt
+        self.customer_request = customer_request
         self.response_type = response_type
 
         self.template = None
@@ -68,7 +65,7 @@ class CompleteTable:
         if response.status_code == 200:
             sheet_data = response.json()
             # columns = sheet_data['sheet'].keys()
-            self.table = pd.read_json(sheet_data['sheet'])
+            self.table = pd.DataFrame(sheet_data['sheet'])
             self.common.write(WriteType.DEBUG,self.table)
         else:
             self.common.write(WriteType.ERROR,{'sheet_id':sheet_id,'code':response.status_code,'text':response.text})
@@ -148,17 +145,27 @@ class CompleteTable:
                                                   model_name="gpt-4-1106-preview")
 
         answer = chain.invoke({"new_column": empty_cols,
-                               "question": self.users_prompt,
+                               "question": self.customer_request,
                                "exists": exists_cols})
 
         match = re.search(r'\bUseful columns\b', answer.content)
-        pos2 = match.span()
-        useful = answer.content[pos2[1] + 4:-1]
-        useful = [s.strip().strip("'") for s in useful.split(',')]
+        if match:
+            pos2 = match.span()
+            useful = answer.content[pos2[1] + 4:-1]
+            useful = [s.strip().strip("'") for s in useful.split(',')]
+        else:
+            pos2 = None
+            useful = []
 
         match = re.search(r'\brequest\b', answer.content)
-        pos1 = match.span()
-        request = answer.content[pos1[1] + 3: pos2[0]]
+        if match:
+            pos1 = match.span()
+            if pos2:
+                request = answer.content[pos1[1] + 3: pos2[0]]
+            else:
+                answer.content[pos1[1] + 3:]
+        else:
+            request = self.customer_request
 
         return request, useful, exists_cols, original_cols
 
@@ -181,13 +188,24 @@ class CompleteTable:
                                "exists": exists_cols})
 
         match = re.search(r'\bUseful columns\b', answer.content)
-        pos2 = match.span()
-        useful = answer.content[pos2[1] + 4:-1]
-        useful = [s.strip().strip("'") for s in useful.split(',')]
+        if match:
+            pos2 = match.span()
+            useful = answer.content[pos2[1] + 4:-1]
+            useful = [s.strip().strip("'") for s in useful.split(',')]
+        else:
+            pos2 = None
+            useful = []
 
         match = re.search(r'\brequest\b', answer.content)
-        pos1 = match.span()
-        request = answer.content[pos1[1] + 3: pos2[0]]
+        if match:
+            pos1 = match.span()
+            request = answer.content[pos1[1] + 3: pos2[0]]
+            if pos2:
+                request = answer.content[pos1[1] + 3: pos2[0]]
+            else:
+                request = answer.content[pos1[1] + 3:]
+        else:
+            request = "False"
 
         return request, useful, exists_cols, original_cols
 
@@ -245,7 +263,7 @@ if __name__ == "__main__":
     parser.add_argument('-a', '--api_key', help='Backend Key', required=True)
     parser.add_argument('-token', '--token', required=True)
     parser.add_argument('-sheet', '--sheet_id', required=True)
-    parser.add_argument('-query', '--users_prompt')
+    parser.add_argument('-r', '--customer_request')
     parser.add_argument('-response', '--response_type')
     group = parser.add_mutually_exclusive_group(required=False)
     group.add_argument('-p', '--table_path', help='Path of the table to be filled.')

@@ -1,5 +1,6 @@
 import os
 from typing import Optional
+from decouple import config
 
 def _parse_value(value, var_type):
     if var_type == bool:
@@ -29,18 +30,18 @@ class __SingletonMeta(type):
 
 class __BaseConfig(metaclass=__SingletonMeta):
     DEFAULTS = {
-        'TOKEN': ('',str),
-        'OPENAI_API_KEY': ('',str),
-        'SERVICE_API_URL': ('https://backend.vhi.ai/service-api',str),
-        'SERVICE_API_KEY': ('',str),
-        'MODEL_BIG': ('gpt-4-1106-preview',str),
-        'MODEL_SMALL': ('gpt-3.5-turbo-instruct',str),
-        'COLLECTION_NAME': ('talonic_collection',str),
-        'MAX_TOKENS': (3000,int),
-        'REQUEST_TIMEOUT': (30000,int),
-        'MAX_RETRIES': (1,int),
-        'LOG_LEVEL': ('DEBUG',str),
-        'SHEET_ID': ('',str)
+        'TOKEN': (config('USER', default=''), str),
+        'OPENAI_API_KEY': (config('KEY', default=''), str),
+        'SERVICE_API_URL': (config('SERVICE_API_URL', default='https://backend.vhi.ai/service-api'), str),
+        'SERVICE_API_KEY': (config('API_KEY', default=''), str),
+        'MODEL_BIG': (config('MODEL_BIG', default='gpt-4-1106-preview'), str),
+        'MODEL_SMALL': (config('MODEL_SMALL', default='gpt-3.5-turbo-instruct'), str),
+        'COLLECTION_NAME': (config('COLLECTION_NAME', default='talonic_collection'), str),
+        'MAX_TOKENS': (config('MAX_TOKENS', default=3000, cast=int), int),
+        'REQUEST_TIMEOUT': (config('REQUEST_TIMEOUT', default=30000, cast=int), int),
+        'MAX_RETRIES': (config('MAX_RETRIES', default=2, cast=int), int),
+        'LOG_LEVEL': (config('LOG_LEVEL', default='DEBUG'), str),
+        'SHEET_ID': (config('SHEET_ID', default=''), str)
     }
     TOKEN:str = DEFAULTS['TOKEN'][0]
     OPENAI_API_KEY:str = DEFAULTS['OPENAI_API_KEY'][0]
@@ -54,6 +55,12 @@ class __BaseConfig(metaclass=__SingletonMeta):
     MAX_RETRIES:int = DEFAULTS['MAX_RETRIES'][0]
     LOG_LEVEL:str = DEFAULTS['LOG_LEVEL'][0]
     SHEET_ID:str = DEFAULTS['SHEET_ID'][0]
+    
+    def set_environment_variables(self):
+        """Sets relevant environment variables based on config values."""
+        os.environ['API_USER'] = self.TOKEN
+        os.environ['OPENAI_API_KEY'] = self.OPENAI_API_KEY
+        os.environ['API_KEY'] = self.SERVICE_API_KEY
     
     @classmethod
     def get(cls, key):
@@ -88,3 +95,4 @@ class Config(__BaseConfig):
         for key, value in overrides.items():
             if key in self.DEFAULTS:  # Ensure only valid config keys are overridden
                 setattr(self, key, _parse_value(value,self.DEFAULTS[key][1]))
+        self.set_environment_variables()

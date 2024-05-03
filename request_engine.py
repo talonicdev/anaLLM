@@ -2,7 +2,6 @@ import argparse
 import ast
 import json
 import os
-import logging
 import requests
 
 from aenum import extend_enum
@@ -25,15 +24,9 @@ from utils.conf import load_templates, get_template, WordContext, WordException,
     is_range, format_dataframe, special_char, Units, check_number_unit
 from vector_search import VectorSearch
 from config import Config
-from common import Common, WriteType, Requests
+from common import Common, WriteType, Requests, get_logger
 
-logging.basicConfig(filename='logs/request_engine.log',
-                    format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-                    datefmt='%Y-%m-%d:%H:%M:%S',
-                    level=logging.DEBUG)
-
-logger = logging.getLogger(__name__)
-
+logger = get_logger(__name__)
 
 class TableSetter:
 
@@ -51,7 +44,7 @@ class TableSetter:
         :param api_key: key of openai key
         :param dataset_name: name of dataset with file extension, ex.: table.csv
         """
-
+        
         self.api_key = api_key
         self.token = token
         self.format = format
@@ -88,22 +81,25 @@ class TableSetter:
 
         self.prompt_template = None
         self.terminate = False
-
+        
+        self.config = Config(
+            openai_api_key=openai_api_key,
+            token=token,
+            api_key=api_key
+        )
+        self.common = Common(config=self.config)
+        self.requests = Requests(config=self.config)
+        
         self.init_attr(openai_api_key, token, api_key, debug=debug, test_file=test_file)
         self.load_WordContext()
         self.load_Units()
+        
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
 
     def init_attr(self, openai_api_key, token, api_key, debug=False, test_file=None):
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         if not debug:
-            self.config = Config(
-                openai_api_key=openai_api_key,
-                token=token,
-                api_key=api_key
-            )
-            self.common = Common(config=self.config)
-            self.requests = Requests(config=self.config)
             self.load_table()
-
         else:
             cwd = Path(__file__).resolve().parent
             self.table, self.table_side_data = format_dataframe(f'{cwd}/test_files/test_data/quality_data/{test_file}')
@@ -116,24 +112,22 @@ class TableSetter:
         self.meta_data_table = pd.DataFrame(columns=columns)
 
         self.llm = OpenAI(api_token=openai_api_key, engine="gpt-4-1106-preview")
-
         name = 'test_collection' if self.debug else self.config.COLLECTION_NAME
-        self.vs = VectorSearch(self.token, debug=self.debug, collection_name=name)
+        self.vs = VectorSearch(self.token, debug=self.debug, collection_name=name, sheet_id=self.sheet_id)
 
     def load_table(self):
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         base_url = 'https://backend.vhi.ai/service-api'
         headers = {'Authorization': f'Bearer {self.token}',
                    'x-api-key': f'{self.api_key}'}
-        response = requests.get(f"{base_url}/sheet/{self.sheet_id}", headers=headers)
+        
+        format = self.format if self.format else 'unstructured'
+        
+        response = requests.get(f"{base_url}/sheet/{self.sheet_id}", headers=headers, params={'format':format})
         if response.status_code == 200:
             sheet_data = response.json()
-            self.table_side_data = f"{sheet_data['tableName']} - {sheet_data['sheetName']}"
-
-            if self.format == 'excel':
-                self.table, self.table_side_data = format_dataframe(sheet_data['sheet'])
-            else:
-                self.table = pd.DataFrame(sheet_data['sheet'])
-
+            table_name = f"{sheet_data['tableName']} - {sheet_data['sheetName']}"
+            self.table, self.table_side_data = format_dataframe(sheet_data['sheet'], format=sheet_data['format'], table_name=table_name)
             self.user_id = sheet_data['userId']
         else:
             print("Error:", response.status_code, response.text)
@@ -143,6 +137,7 @@ class TableSetter:
         If entry in metadata table already exists and just has some changes.
         :return: Updated metadata table for given key of changed table.
         """
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         date_time = datetime.fromtimestamp(datetime.timestamp(datetime.now()))
         last_update = date_time.strftime("%d-%m-%Y, %H:%M:%S")
         self.table.loc[self.table['key'] == self.key, 'last_update'] = last_update
@@ -151,14 +146,18 @@ class TableSetter:
         """
         Inserts values for all columns of row entry with given key.
         """
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         self.columns_info()
         self.get_summary()
         self.get_column_types()
         self.context()
 
     def save_results(self):
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         self.load_into_vector_db()
+        self.save_clean_sheet()
         self.save_meta_data_table()
+        self.common.write(WriteType.RESULT, True)
 
     def run(self, test_file=None):
         """
@@ -166,6 +165,7 @@ class TableSetter:
         :param destination_name: new short name for given table
         :param table_key: if entry already exists this key is a reference to given table.
         """
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         self.setup_entry(test_file=test_file)
         self.process_entries()
 
@@ -173,6 +173,7 @@ class TableSetter:
         """
         Creates new entry in meta_data_table w/ key, table_name, creation_date, last_update
         """
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         key = datetime.timestamp(datetime.now())
         table_name = ' '.join(self.table_side_data)
         date_time = datetime.fromtimestamp(key)
@@ -189,12 +190,23 @@ class TableSetter:
             self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'path'] = test_file
 
     def get_summary_template(self):
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         self.template, self.prefix, self.suffix, self.examples = load_templates('summary_template')
         self.prompt_template = get_template(self.examples,
                                             self.prefix,
                                             self.suffix)
 
-    def get_summary(self):
+    def get_summary(self, attempt=0):
+        
+        if attempt > 3:
+            self.common.write(WriteType.WARN,f'Sheet summary extraction failed for sheet id "{self.sheet_id}"')
+            self.description = "No description available."
+            self.keywords = ['unknown']
+            self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'description'] = self.description
+            self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'keywords'] = f'{self.keywords}'
+            return
+        
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         self.get_summary_template()
         column_names: list = ast.literal_eval(self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_names'][0])
         chain = self.prompt_template | ChatOpenAI(temperature=0.0,
@@ -215,7 +227,8 @@ class TableSetter:
             self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'description'] = self.description
             self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'keywords'] = f'{self.keywords}'
         else:
-            self.get_summary()
+            self.common.write(WriteType.DEBUG,f'Invalid GPT response: {answer.content}')
+            self.get_summary(attempt+1)
 
     def columns_info(self) -> None:
         """
@@ -224,10 +237,12 @@ class TableSetter:
         if no column header - a new one will be created and inserted.
         :return: column names and types
         """
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         column_description = self.get_column_description()
         self.column_names = ast.literal_eval(column_description)
         self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_names'] = f'{self.column_names}'
 
+    '''    
     def get_column_types(self):
         """
         Sets the column types
@@ -254,34 +269,55 @@ class TableSetter:
 
         self.col_types = self.table.infer_objects().dtypes
         self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_types'] = \
-            f'{[str(ct) for ct in self.col_types.to_list()]}'
+            f'{[str(ct) for ct in self.col_types.to_list()]}' 
+    '''
+            
+    def get_column_types(self):
+        """
+        Replaces infinities with NaN, drops NaNs, infers column types, and updates the metadata table.
+
+        """
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
+        self.table.replace([np.inf, -np.inf], np.nan, inplace=True)
+        self.table.dropna(inplace=True)
+        self.table = self.table.infer_objects()
+        
+        # Format and update the metadata table with the column types
+        self.col_types = self.table.dtypes
+        col_types_formatted = f'{[str(ct) for ct in self.col_types.to_list()]}'
+        self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_types'] = col_types_formatted
+    
 
     def get_columns_template(self):
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         self.template, self.prefix, self.suffix, self.examples = load_templates('columns_template')
         self.prompt_template = get_template(self.examples,
                                             self.prefix,
                                             self.suffix)
 
     def get_unknown_column(self, column_names, col_vals):
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         self.get_columns_template()
         chain = self.prompt_template | ChatOpenAI(temperature=0.2,
                                                   openai_api_key=self.openai_api_key,
                                                   model_name="gpt-4-1106-preview")
 
         answer = chain.invoke({"Current_column_name": column_names, "Cell_Values": col_vals})
-        return ast.literal_eval(answer.content)
+        return not re.search(r'[Ff]alse',answer.content)
+    
+        #return ast.literal_eval(answer.content)
 
     def get_column_description(self) -> str:
         """
         Via Completion (gpt) estimates the meaning of each column
         :return: a list of column names
         """
-
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         column_descriptions = []
-        table_cols = [self.random_selection(self.table.iloc[:, i].tolist(), np.min(np.array([10, len(self.table.index)]))) for i in range(len(self.table.columns))]
+        table_cols = [self.random_selection(self.table.iloc[:, i].tolist(), np.min(np.array([5, len(self.table.index)]))) for i in range(len(self.table.columns))]
 
         for i, col in enumerate(table_cols):
-            current_col_name = self.clean_results(self.table.columns.tolist()[i])
+            current_col_name = self.clean_results((self.table.columns.tolist()[i] or ""))
             if self.get_unknown_column(current_col_name, col):
                 task = (
                     f'We have a data table that has some undefined column names, like "Unnamed: 0" or "Unnamed:'
@@ -323,10 +359,12 @@ class TableSetter:
         :param idx: index referencing a column
         :return: updates datetime formate from string, type: None
         """
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         parser = partial(dparser.parse, fuzzy=True)
         self.table.iloc[:, idx] = self.table.iloc[:, idx].apply(parser)
 
     def get_context_template(self):
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         self.template, self.prefix, self.suffix, self.examples = load_templates('context_template')
         self.prompt_template = get_template(self.examples,
                                             self.prefix,
@@ -337,6 +375,7 @@ class TableSetter:
         Via Completion (gpt) estimates context of given table.
         :return: context value
         """
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         self.get_context_template()
 
         description = self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'description']
@@ -362,6 +401,7 @@ class TableSetter:
         """
         Sets up a context value for given table.
         """
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         self.context_result = self.get_context()
 
         regex = r'\b\w+\b'
@@ -378,6 +418,7 @@ class TableSetter:
         """
         Extracts for every column all scopes of given table.
         """
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         scopes = dict()
         for idx, col in enumerate(self.table.columns):
             if (self.table.iloc[:, idx].dtypes == 'object') or (self.table.iloc[:, idx].dtypes == 'StringDtype'):
@@ -448,6 +489,7 @@ class TableSetter:
                     extend_enum(Units, f'{key}', unit_dict[key])
 
     def load_into_vector_db(self):
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         vec_num = self.vs.me.collection.count()
         self.vs.embed_context(vec_num=vec_num, meta_data=self.meta_data_table.loc[self.meta_data_table['key'] == self.key])
 
@@ -455,6 +497,7 @@ class TableSetter:
         """
         Saves metadata table as json and excel files.
         """
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         if self.debug:
             cwd = Path(__file__).resolve().parent
             if os.path.isfile(f'{cwd}/test_files/test_data/quality_data/quality_meta.xlsx'):
@@ -472,9 +515,19 @@ class TableSetter:
             metadata = self.meta_data_table.to_json(path_or_buf=None)
             dict_meta = json.loads(metadata)
             result = requests.patch(f"{base_url}/metadata", headers=headers, json=dict_meta)
-            if result.status_code == 200:
-                self.common.write(WriteType.RESULT, True)
-
+            if result.status_code != 200:
+                self.common.write(WriteType.WARN,f'Could not save metadata table (status code {result.status_code}): {result.reason}, {result.text}',None)
+                
+    def save_clean_sheet(self) -> None:
+        self.common.write(WriteType.TRACE,f'{self.sheet_id}')
+        if not self.debug:
+            base_url = 'https://backend.vhi.ai/service-api'
+            headers = {'Authorization': f'Bearer {self.token}',
+                       'x-api-key': f'{self.api_key}'}
+            table_json = json.loads(self.table.to_json(path_or_buf=None, orient="index"))
+            result = requests.post(f"{base_url}/sheet/{self.sheet_id}", headers=headers, json=table_json)
+            if result.status_code != 204:
+                self.common.write(WriteType.WARN,f"Could not save cleaned sheet '{self.sheet_id}': {result.status_code} {result.reason}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Set a table.')
@@ -483,7 +536,9 @@ if __name__ == "__main__":
     parser.add_argument('-token', '--token', required=True)
     parser.add_argument('-sheet', '--sheet_id', required=True)
     args = parser.parse_args()
-
+    
     setter = TableSetter(**vars(args))
+    setter.common.write(WriteType.DEBUG,f'Setter starting for sheet {args.sheet_id}..')
     setter.run()
+    setter.common.write(WriteType.DEBUG,'Setter completed, saving results..')
     setter.save_results()

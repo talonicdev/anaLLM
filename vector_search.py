@@ -1,6 +1,5 @@
 import os
 import ast
-import logging
 import chromadb
 from pathlib import Path
 from typing import List
@@ -21,26 +20,16 @@ from langchain_community.chat_models import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 
 from utils.conf import load_templates, get_template, load_datasets
-from common import Common, WriteType
+from common import Common, WriteType, get_logger
 from config import Config
 
-
-os.environ['API_USER'] = config('USER')
-os.environ['OPENAI_API_KEY'] = config('KEY')
-
-
-logging.basicConfig(filename='logs/vector_search.log',
-                    format='%(asctime)s,%(msecs)03d %(levelname)-8s [%(filename)s:%(lineno)d] %(message)s',
-                    datefmt='%Y-%m-%d:%H:%M:%S',
-                    level=logging.DEBUG)
-
-logger = logging.getLogger(__name__)
-
+logger = get_logger(__name__)
 
 class MetaEngine:
 
     def __init__(self,
                  token: str = None,
+                 sheet_id: str = None,
                  debug: bool = False):
 
         self.token = token
@@ -49,7 +38,7 @@ class MetaEngine:
         self.common = Common(config=self.config)
         self.embedder = SentenceTransformer('all-MiniLM-L6-v2')
         self.corpus_embeddings = torch.zeros(size=(1, 0))
-
+        self.sheet_id = sheet_id
         self.tables = None
         self.collection = None
         self.chroma_client = None
@@ -85,6 +74,8 @@ class MetaEngine:
         self.collection = self.chroma_client.get_or_create_collection(name=collection_name)
 
     def embed_new_vec(self, vec_num, sheet_id, corpus):
+        if not corpus:
+            return
         new_embed = self.embedder.encode(corpus, convert_to_tensor=True, show_progress_bar=True)
         if self.corpus_embeddings.nelement() == 0:
             self.corpus_embeddings = new_embed
@@ -109,7 +100,7 @@ class MetaEngine:
         self.corpus_embeddings = torch.FloatTensor(dataset['embeddings'])
 
     def find_semantic(self, queries: List[str], n_results=1000):
-        column_dict = {int(k): v for d in self.collection_dict['metadatas'] for k, v in d.items()}
+        column_dict = {int(k): v for d in self.collection_dict['metadatas'] for k, v in d.items() if k != 'sheet_id'}
         self.tables = list(set([ast.literal_eval(column_dict[d])[0] for d in column_dict.keys()]))
         self.table_probabilities = np.zeros(len(self.tables))
 
@@ -120,22 +111,51 @@ class MetaEngine:
             query_embedding = self.embedder.encode(query, convert_to_tensor=True)
             hits = util.semantic_search(query_embedding, self.corpus_embeddings, top_k=n_results)
             hits = hits[0]
-
             for idx, hit in enumerate(hits):
-                table_probability[ast.literal_eval(column_dict[hit['corpus_id']])[0]].append(hit['score'])
+                corpus_id = hit['corpus_id']
+                if corpus_id in column_dict:
+                    try:
+                        table_name = ast.literal_eval(column_dict[corpus_id])[0]
+                        if table_name in table_probability:
+                            score = hit['score']
+                            table_probability[table_name].append(hit['score'])
+                        else:
+                            self.common.write(WriteType.DEBUG, f'Table name {table_name} from corpus ID {corpus_id} not found in table probabilities.')
+                    except (SyntaxError, IndexError, TypeError):
+                        self.common.write(WriteType.DEBUG, f'Error evaluating table name for corpus ID {corpus_id}. Check data format.')
+                else:
+                    self.common.write(WriteType.DEBUG, f'Corpus ID {corpus_id} not found in column dictionary.')
 
+            #for idx, hit in enumerate(hits):
+            #    table_probability[ast.literal_eval(column_dict[hit['corpus_id']])[0]].append(hit['score'])
             table_scores_list = list(table_probability.values())
             table_scores = np.zeros([len(table_scores_list), len(max(table_scores_list, key=lambda x: len(x)))])
             for i, j in enumerate(table_scores_list):
                 table_scores[i][0:len(j)] = j
-
             # options: table_max_scores = np.mean(table_scores, axis=1) or table_max_scores = np.max(table_scores, axis=1)
 
-            table_max_scores = np.mean(table_scores, axis=1)
+            #table_max_scores = np.mean(table_scores, axis=1)
+            #table_max_scores = np.max(table_scores, axis=1)
+            masked_table_scores = np.ma.masked_equal(table_scores, 0)
+            table_max_scores = masked_table_scores.mean(axis=1).filled(0)
             self.table_probabilities += table_max_scores / len(queries)
-
+            
         indices = [list(self.table_probabilities).index(p) for p in self.table_probabilities if p > 0.3]
-        return [self.tables[idx] for idx in indices]
+        
+        # Check if self.sheet_id's mean score is above 0 and ensure it's included
+        if self.sheet_id:
+            try:
+                sheet_id_index = self.tables.index(self.sheet_id)
+                sheet_bias_score = table_max_scores[sheet_id_index]
+                if sheet_bias_score > 0:
+                    indices.append(sheet_id_index)
+                    indices = list(set(indices))
+            except ValueError:
+                self.common.write(WriteType.DEBUG,f'Sheet {self.sheet_id} not among self.tables')
+
+        selected_sheets = [self.tables[idx] for idx in indices]
+        self.common.write(WriteType.REFERENCES,selected_sheets)
+        return selected_sheets
 
 
 class VectorSearch:
@@ -143,12 +163,13 @@ class VectorSearch:
                  token: str = None,
                  debug: bool = False,
                  reload: bool = False,
+                 sheet_id: str = None,
                  collection_name: str = 'talonic_collection'):
 
         self.debug = debug
         self.reload = reload
         self.collection_name = collection_name if not debug else 'test_collection'
-        self.me = MetaEngine(token=token, debug=True)
+        self.me = MetaEngine(token=token, debug=debug, sheet_id=sheet_id)
         self.initialize()
         self.me.load_collection(self.collection_name)
 
@@ -165,8 +186,9 @@ class VectorSearch:
             k = ' - '.join(all_keywords)
             column_names = ast.literal_eval(row['column_names'])
             concat = [' - '.join([k, c]) for c in column_names]
-            self.me.embed_new_vec(vec_num, sheet_id=row['key'], corpus=concat)
-            vec_num += len(concat)
+            if concat:
+                self.me.embed_new_vec(vec_num, sheet_id=row['key'], corpus=concat)
+                vec_num += len(concat)
 
     def find_tables(self, request: str):
         self.me.load_vec()
