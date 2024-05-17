@@ -15,7 +15,8 @@ import yaml
 import pandasai
 
 from pathlib import Path
-from pandasai import SmartDatalake, Agent
+from pandasai import SmartDatalake, Agent, SmartDataframe
+from pandasai.connectors import BaseConnector, PandasConnector
 from langchain.prompts import ChatPromptTemplate
 
 from vector_search import VectorSearch
@@ -24,10 +25,18 @@ from utils.conf import load_templates, get_template, WordContext, format_datafra
 from common import Common, Requests, WriteType, ProcessErrType, get_logger
 from config import Config
 
+from typing import Tuple
+
 logger = get_logger(__name__)
 
-# Add exceptions to PandasAI's whitelisted builtin imports
-pandasai.constants.WHITELISTED_BUILTINS.extend(["Exception","ValueError","NameError","TypeError","ArithmeticError","ZeroDivisionError","KeyError","FloatingPointError","AttributeError","OverflowError"])
+# Overwrite PandasAI's whitelisted builtins 
+# and add exceptions to imports and libraries
+pandasai.constants.WHITELISTED_BUILTINS.extend([
+    "Exception","ValueError","NameError","TypeError",
+    "ArithmeticError","ZeroDivisionError","KeyError","FloatingPointError",
+    "AttributeError","OverflowError","StopIteration"
+])
+pandasai.constants.WHITELISTED_LIBRARIES.extend(['_strptime'])
 
 class Extractor:
 
@@ -105,18 +114,27 @@ class Extractor:
         else:
             self.load_meta_table()
 
-    def call_table(self, sheet_id):
+    def call_table(self, sheet_id, meta) -> Tuple[PandasConnector,str]:
         try:
             response = self.requests.get(f'sheet/{sheet_id}')
             if response.status_code == 200:
                 sheet_data = response.json()
-                return pd.DataFrame(sheet_data['sheet'])
+                name = f"{sheet_data['tableName']}, {sheet_data['sheetName']}"
+                description = ""
+                if meta is not None:
+                    try:
+                        description = meta['description'].values[0]
+                    except:
+                        pass
+                df = pd.DataFrame(sheet_data['sheet'])
+                return PandasConnector({"original_df": df}, name=name, description=description), name
                 #return pd.read_json(sheet_data['sheet'])
             else:
                 print(response)
                 self.common.write(WriteType.ERROR, response)
                 return None
-        except:
+        except Exception as e:
+            self.common.write(WriteType.ERROR, f"Could not call sheet {sheet_id}",error=e)
             return None
 
     def load_meta_table(self):
@@ -184,6 +202,7 @@ class Extractor:
         #logging.info(f"SELECTED TABLES")
         # cwd for table path
         retrieved_keys = []
+        dfs = []
         
         for key in table_keys:
             if self.debug:
@@ -195,15 +214,32 @@ class Extractor:
                 self.selected_tables.append(table)
 
             else:
-                table = self.call_table(key)
+                meta = self.meta_data_table[self.meta_data_table['key'] == key]
+                table, name = self.call_table(key, meta)
                 if table is not None:
                     self.selected_tables.append(table)
                     retrieved_keys.append(key)
-
+                    dfs.append(name)
                 else:
                     self.common.write(WriteType.DEBUG, f'Selected sheet "{key}" could not be retrieved')
 
+        self.common.write(WriteType.DATAFRAMES, dfs)
         #self.common.write(WriteType.REFERENCES, retrieved_keys)
+        
+    def try_run(self, prompt: str, n_attempts_left: int = 0) -> bool:
+        if n_attempts_left > 0:
+            self.dl.clear_memory()
+            self.response = self.dl.chat(prompt, self.response_type)
+            response_type, is_valid_type = self.common.get_response_type(self.response_type,self.response)
+            if is_valid_type:
+                self.response_type = response_type
+                return True
+            else:
+                n_attempts_left = n_attempts_left - 1
+                return self.try_run(prompt,n_attempts_left=n_attempts_left)
+        else:
+            self.response_type = "error"
+            return False
 
     def run_request(self):
         """agent = Agent(self.selected_tables, config={"llm": self.llm}, memory_size=10)
@@ -232,36 +268,27 @@ class Extractor:
                                 "llm_options": {
                                     "request_timeout": self.config.REQUEST_TIMEOUT
                                 },
-                                "max_retries": self.config.MAX_RETRIES
+                                "max_retries": self.config.ERROR_CORRECTION_ATTEMPTS
                                 },
                         memory_size=10)
         
         #self.response = self.common.chat_agent(self.dl,self.customer_request,self.response_type)
-        #print(f"Request is: {self.customer_request}")
-        extended_request = f"{self.customer_request}\n**Important:** Always expect invalid data types or missing values for individual cells and catch exceptions and/or check with 'isinstance()'."
-        self.response = self.dl.chat(extended_request, self.response_type)
-        self.dl
+        prompt = f"{self.customer_request}\n**Important:** Always expect invalid data types or missing values for individual cells and catch exceptions and/or check with 'isinstance()'."
+        if self.response_type == "dataframe":
+            prompt = prompt + f"\nPlease also ensure that all new values in the resulting dataframe are simple types (string, number or boolean) as we want to save the table in a CSV file later."
         
-        if self.common.pd_ai_is_expected_type(self.response_type,self.response):
-            # Response is one of the expected data types
+        result = self.try_run(prompt,self.config.MAX_RETRIES)
+        
+        self.common.write(WriteType.CODE,self.dl.last_code_generated)
+        
+        if result:
             self.common.write(WriteType.RESULT,{'type':self.response_type,'data':self.response})
-            # TODO: The following doesn't work with SmartDataLakes, but it does with Agents. Try and change after update?
-            #if self.response_type == 'plot':
-            #    response_explanation = self.common.chat_agent(self.dl,"Explain the results of the generated plot in a couple of sentences","string")
-            #    if isinstance(response_explanation,str):
-            #        self.common.write(WriteType.RESULT,{'type':"string",'data':response_explanation})
-            #explanation = self.dl.explain()
-            #explanation = self.dl.chat("Does your previous response sufficiently fulfill the query with relevant and meaningful results?")
-            #explanation = self.dl.chat("Explain and analyze the plot in a few short sentences.","string")
-            
-            #self.common.write(WriteType.RESULT,{'type':'string','data':explanation})
-            #self.common.write(WriteType.RESULT,{'type':'string','data':self.dl.context.memory.get_messages()})
         else:
             res_type = type(self.response).__name__
-            self.common.write(WriteType.ERROR,f'Expected type {self.response_type}, got {res_type}')
-            self.common.write(WriteType.ERROR,self.response)
-            self.common.write(WriteType.ERROR, self.dl.last_error)
-            #self.common.write(WriteType.DEBUG,self.dl._lake.logs)
+            self.common.write(WriteType.WARN,f'Expected type {self.response_type}, got {res_type}')
+            self.common.write(WriteType.ERROR,self.dl.last_error)
+            self.common.write(WriteType.PANDASAIERR,self.dl.last_error)
+        self.response = self.dl.chat(prompt, self.response_type)
 
         #if self.make_plot:
         #    self.response.chat("Create a plot of your result.")

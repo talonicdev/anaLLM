@@ -171,23 +171,23 @@ def format_dataframe(data, format: Optional[str]='file', table_name: Optional[st
     # Load the workbook from the specified format
     if format == 'file':
         # Load from file -> `data` is a file path
-        dataframe = init_workbook_from_file(data)
+        workbook = init_workbook_from_file(data)
         table_name = Path(data).stem
     elif format == 'json':
         # Load from JSON -> `data` is { [row index: number]: {col index: number}: string|number }
-        dataframe = init_workbook_from_json(data)
+        workbook = init_workbook_from_json(data)
     elif format == 'excel':
         # Load from Excel -> `data` is a base64 encoded .xlsx file buffer
-        dataframe = init_workbook_from_base64XLSXbuffer(data)
+        workbook = init_workbook_from_base64XLSXbuffer(data)
     else:
         # Try loading from some other format, presumably dict, skip formatting/cleaning
         return pd.DataFrame(data), [table_name]
     
-    dataframe1 = dataframe.active
+    worksheet = workbook.active
     row_vectors = []
 
     # Process each row in the worksheet to determine significant rows
-    for row in dataframe1.iter_rows(1, dataframe1.max_row):
+    for row in worksheet.iter_rows(1, worksheet.max_row):
         # Append non-empty cells as tuples (index, cell_value)
         row_vectors.append([i for i, cell in enumerate(row) if cell.value])
 
@@ -202,33 +202,43 @@ def format_dataframe(data, format: Optional[str]='file', table_name: Optional[st
 
     data = []
     col_names = []
-    side_data = []
+    side_data = [table_name]
 
-    # Extract column names and row data
-    for idx, row in enumerate(dataframe1.iter_rows(1, dataframe1.max_row)):
-        if idx in keep_idx:
-            if idx == keep_idx[0]:
-                # First significant row is treated as the header
-                col_names = [cell.value for cell in row]
-                # Rename duplicate columns Windows style ("Name", "Name (2)", "Name (3)", ..)
-                col_names = rename_duplicate_columns(col_names)
+    if keep_idx:
+        # Extract column names and row data
+        for idx, row in enumerate(worksheet.iter_rows(1, worksheet.max_row)):
+            if idx in keep_idx:
+                if idx == keep_idx[0]:
+                    # First significant row is treated as the header
+                    col_names = [cell.value for cell in row]
+                    # Rename duplicate columns Windows style ("Name", "Name (2)", "Name (3)", ..)
+                    col_names = rename_duplicate_columns(col_names)
+                else:
+                    # Subsequent rows are treated as data
+                    vals = {col_names[i]: cell.value for i, cell in enumerate(row)}
+                    data.append(vals)
             else:
-                # Subsequent rows are treated as data
-                vals = {col_names[i]: cell.value for i, cell in enumerate(row)}
-                data.append(vals)
+                # Rows before the first significant row are treated as side data
+                if idx < keep_idx[0]:
+                    vals = [cell.value for cell in row if cell.value]
+                    if len(vals) > 0:
+                        side_data.extend([cell.value for cell in row if cell.value])
+                        
+        if len(keep_idx) == 1:  # This means only header was found, no data rows
+            df = pd.DataFrame(columns=col_names)
         else:
-            # Rows before the first significant row are treated as side data
-            if idx < keep_idx[0]:
-                vals = [cell.value for cell in row if cell.value]
-                if len(vals) > 0:
-                    side_data.extend([cell.value for cell in row if cell.value])
+            df = pd.DataFrame(data, columns=col_names)
+                        
+    else:
+        df = pd.DataFrame()
 
     # Create DataFrame from data
-    df = pd.DataFrame.from_records(data)
+    #df = pd.DataFrame.from_records(data)
+    print(df.columns)
     # Remove empty rows
     df = df.dropna(how='all')
     # Remove empty columns
-    df = df.dropna(axis='columns', how='all')
+    #df = df.dropna(axis='columns', how='all')
     # Fill missing cell values with NaN
     df = df.fillna(value=np.nan)
     # Drop duplicate rows (across all columns, keeping the respective first instance)
@@ -244,8 +254,8 @@ def format_dataframe(data, format: Optional[str]='file', table_name: Optional[st
             pass
 
     # If no side data was extracted, use the table name as side data
-    if len(side_data) == 0:
-        side_data.append(table_name)
+    #if len(side_data) == 0:
+    #    side_data.append(table_name)
         
     #print(df)
 

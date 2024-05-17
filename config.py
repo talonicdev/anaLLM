@@ -39,7 +39,8 @@ class __BaseConfig(metaclass=__SingletonMeta):
         'COLLECTION_NAME': (config('COLLECTION_NAME', default='talonic_collection'), str),
         'MAX_TOKENS': (config('MAX_TOKENS', default=3000, cast=int), int),
         'REQUEST_TIMEOUT': (config('REQUEST_TIMEOUT', default=30000, cast=int), int),
-        'MAX_RETRIES': (config('MAX_RETRIES', default=2, cast=int), int),
+        'MAX_RETRIES': (config('MAX_RETRIES', default=1, cast=int), int),
+        'ERROR_CORRECTION_ATTEMPTS': (config('ERROR_CORRECTION_ATTEMPTS', default=1, cast=int), int),
         'LOG_LEVEL': (config('LOG_LEVEL', default='DEBUG'), str),
         'SHEET_ID': (config('SHEET_ID', default=''), str)
     }
@@ -53,6 +54,7 @@ class __BaseConfig(metaclass=__SingletonMeta):
     MAX_TOKENS:int = DEFAULTS['MAX_TOKENS'][0]
     REQUEST_TIMEOUT:int = DEFAULTS['REQUEST_TIMEOUT'][0]
     MAX_RETRIES:int = DEFAULTS['MAX_RETRIES'][0]
+    ERROR_CORRECTION_ATTEMPTS:int = DEFAULTS['ERROR_CORRECTION_ATTEMPTS'][0]
     LOG_LEVEL:str = DEFAULTS['LOG_LEVEL'][0]
     SHEET_ID:str = DEFAULTS['SHEET_ID'][0]
     

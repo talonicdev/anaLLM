@@ -110,8 +110,7 @@ class TableSetter:
                    'column_names', 'description', 'column_types']
         if self.debug: columns.append('path')
         self.meta_data_table = pd.DataFrame(columns=columns)
-
-        self.llm = OpenAI(api_token=openai_api_key, engine="gpt-4-1106-preview")
+        self.llm = OpenAI(api_token=openai_api_key, engine=self.config.MODEL_BIG)
         name = 'test_collection' if self.debug else self.config.COLLECTION_NAME
         self.vs = VectorSearch(self.token, debug=self.debug, collection_name=name, sheet_id=self.sheet_id)
 
@@ -209,26 +208,30 @@ class TableSetter:
         self.common.write(WriteType.TRACE,f'{self.sheet_id}')
         self.get_summary_template()
         column_names: list = ast.literal_eval(self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'column_names'][0])
-        chain = self.prompt_template | ChatOpenAI(temperature=0.0,
-                                                  openai_api_key=self.openai_api_key,
-                                                  model_name="gpt-4-1106-preview")
+        
+        if self.prompt_template is not None:
+            chain = self.prompt_template | ChatOpenAI(temperature=0.0,
+                                                    openai_api_key=self.openai_api_key,
+                                                    model_name=self.config.MODEL_BIG)
 
-        answer = chain.invoke({"column_names": column_names,
-                               "dataframe_title": self.meta_data_table.loc[self.meta_data_table['key'] ==
-                                                                           self.key, 'table_name'].values[0]})
+            df_title = self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'table_name'].values[0]
+            answer = chain.invoke({
+                "column_names": column_names,
+                "dataframe_title": df_title
+            })
 
-        extracted_answer = answer.content.split('=')[-1][1:]
-        description = extracted_answer.split('"')
-        self.description = description[int((len(description) + 1) / 2) - 1]
-        str_dict = ', '.join(answer.content.split('=')[3].strip().split(',')[:-1]).strip()[1:-1]
+            extracted_answer = answer.content.split('=')[-1][1:]
+            description = extracted_answer.split('"')
+            self.description = description[int((len(description) + 1) / 2) - 1]
+            str_dict = ', '.join(answer.content.split('=')[3].strip().split(',')[:-1]).strip()[1:-1]
 
-        if len(str_dict.split('}')) == 2 and len(str_dict.split('{')) == 2:
-            self.keywords = list(ast.literal_eval(', '.join(answer.content.split('=')[3].strip().split(',')[:-1]).strip()[1:-1]).keys())
-            self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'description'] = self.description
-            self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'keywords'] = f'{self.keywords}'
-        else:
-            self.common.write(WriteType.DEBUG,f'Invalid GPT response: {answer.content}')
-            self.get_summary(attempt+1)
+            if len(str_dict.split('}')) == 2 and len(str_dict.split('{')) == 2:
+                self.keywords = list(ast.literal_eval(', '.join(answer.content.split('=')[3].strip().split(',')[:-1]).strip()[1:-1]).keys())
+                self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'description'] = self.description
+                self.meta_data_table.loc[self.meta_data_table['key'] == self.key, 'keywords'] = f'{self.keywords}'
+            else:
+                self.common.write(WriteType.WARN,f'Invalid GPT response: `{answer.content}`, df_title was `{df_title}`, column_names were `{column_names}` ')
+                self.get_summary(attempt+1)
 
     def columns_info(self) -> None:
         """
@@ -300,7 +303,7 @@ class TableSetter:
         self.get_columns_template()
         chain = self.prompt_template | ChatOpenAI(temperature=0.2,
                                                   openai_api_key=self.openai_api_key,
-                                                  model_name="gpt-4-1106-preview")
+                                                  model_name=self.config.MODEL_BIG)
 
         answer = chain.invoke({"Current_column_name": column_names, "Cell_Values": col_vals})
         return not re.search(r'[Ff]alse',answer.content)
@@ -327,7 +330,7 @@ class TableSetter:
                     f'Only return your result. No explanations! Example output: "Customer Feedback"')
 
                 name_response = openai.completions.create(
-                    model="gpt-3.5-turbo-instruct",
+                    model=self.config.MODEL_SMALL,
                     prompt=task,
                     temperature=0.2,
                     max_tokens=150,
@@ -384,7 +387,7 @@ class TableSetter:
 
         chain = self.prompt_template | ChatOpenAI(temperature=0.0,
                                                   openai_api_key=self.openai_api_key,
-                                                  model_name="gpt-4-1106-preview")
+                                                  model_name=self.config.MODEL_BIG)
 
         answer = chain.invoke({"summary": description,
                                "options": context_lib,
@@ -524,10 +527,18 @@ class TableSetter:
             base_url = 'https://backend.vhi.ai/service-api'
             headers = {'Authorization': f'Bearer {self.token}',
                        'x-api-key': f'{self.api_key}'}
-            table_json = json.loads(self.table.to_json(path_or_buf=None, orient="index"))
+            
+            if self.table.empty:
+                # Create a temporary DataFrame with the same columns but one row of empty strings
+                dummy_row = pd.DataFrame({col: [''] for col in self.table.columns}, index=[0])
+                # Convert the DataFrame with the dummy row to JSON
+                table_json = json.loads(dummy_row.to_json(orient="index"))
+            else:
+                table_json = json.loads(self.table.to_json(path_or_buf=None, orient="index"))
+                
             result = requests.post(f"{base_url}/sheet/{self.sheet_id}", headers=headers, json=table_json)
             if result.status_code != 204:
-                self.common.write(WriteType.WARN,f"Could not save cleaned sheet '{self.sheet_id}': {result.status_code} {result.reason}")
+                self.common.write(WriteType.WARN,f"Could not save cleaned sheet '{self.sheet_id}': {result.status_code} {result.reason}. JSON was: `{table_json}`, cols were `{self.table.columns}`")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Set a table.')

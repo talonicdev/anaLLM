@@ -73,7 +73,7 @@ class MetaEngine:
     def load_collection(self, collection_name):
         self.collection = self.chroma_client.get_or_create_collection(name=collection_name)
 
-    def embed_new_vec(self, vec_num, sheet_id, corpus):
+    def embed_new_vec(self, vec_num, sheet_id: str, corpus: list[str]):
         if not corpus:
             return
         new_embed = self.embedder.encode(corpus, convert_to_tensor=True, show_progress_bar=True)
@@ -86,11 +86,13 @@ class MetaEngine:
 
     def save_vec(self, vec_num, sheet_id, embeddings, corpus):
         # collection.upsert(...)
-
+        metadata = [{f'{vec_num + i}': f'{[sheet_id, c]}', 'sheet_id': sheet_id} for i, c in enumerate(corpus)]
+        #print(f"Embedding {len(embeddings)} items:")
+        #print(metadata)
         self.collection.add(
             embeddings=embeddings,
             documents=corpus,
-            metadatas=[{f'{vec_num + i}': f'{[sheet_id, c]}', 'sheet_id': sheet_id} for i, c in enumerate(corpus)],
+            metadatas=metadata,
             ids=[f'{sheet_id}_{i}' for i in range(len(corpus))]
         )
 
@@ -142,18 +144,22 @@ class MetaEngine:
             
         indices = [list(self.table_probabilities).index(p) for p in self.table_probabilities if p > 0.3]
         
+        selected_sheets = [self.tables[idx] for idx in indices]
+        
         # Check if self.sheet_id's mean score is above 0 and ensure it's included
         if self.sheet_id:
             try:
                 sheet_id_index = self.tables.index(self.sheet_id)
                 sheet_bias_score = table_max_scores[sheet_id_index]
                 if sheet_bias_score > 0:
-                    indices.append(sheet_id_index)
-                    indices = list(set(indices))
+                    selected_sheets.append(self.sheet_id)
+                else:
+                    self.common.write(WriteType.DEBUG,f'Sheet {self.sheet_id} has score 0')
             except ValueError:
                 self.common.write(WriteType.DEBUG,f'Sheet {self.sheet_id} not among self.tables')
-
-        selected_sheets = [self.tables[idx] for idx in indices]
+                selected_sheets.append(self.sheet_id)
+                
+        selected_sheets = list(set(selected_sheets))
         self.common.write(WriteType.REFERENCES,selected_sheets)
         return selected_sheets
 

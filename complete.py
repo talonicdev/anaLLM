@@ -142,7 +142,7 @@ class CompleteTable:
 
         chain = self.prompt_template | ChatOpenAI(temperature=0.3,
                                                   openai_api_key=self.openai_api_key,
-                                                  model_name="gpt-4-1106-preview")
+                                                  model_name=self.config.MODEL_BIG)
 
         answer = chain.invoke({"new_column": empty_cols,
                                "question": self.customer_request,
@@ -182,7 +182,7 @@ class CompleteTable:
 
         chain = self.prompt_template | ChatOpenAI(temperature=0.6,
                                                   openai_api_key=self.openai_api_key,
-                                                  model_name="gpt-4-1106-preview")
+                                                  model_name=self.config.MODEL_BIG)
 
         answer = chain.invoke({"new_column": empty_cols,
                                "exists": exists_cols})
